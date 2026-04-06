@@ -5139,6 +5139,63 @@
 </div>
 
 <script>
+// ==================== API CONFIG ====================
+const API_URL = 'http://localhost:5001/api';
+let authToken = localStorage.getItem('crmToken') || null;
+
+function apiHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  if (authToken) h['Authorization'] = 'Bearer ' + authToken;
+  return h;
+}
+
+async function apiLogin(email, password) {
+  const res = await fetch(API_URL + '/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Login fehlgeschlagen');
+  authToken = data.token;
+  localStorage.setItem('crmToken', data.token);
+  return data;
+}
+
+async function apiRegister(name, email, password, role) {
+  const res = await fetch(API_URL + '/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, email, password, role })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Registrierung fehlgeschlagen');
+  authToken = data.token;
+  localStorage.setItem('crmToken', data.token);
+  return data;
+}
+
+async function apiLoadCrmData() {
+  if (!authToken) return null;
+  try {
+    const res = await fetch(API_URL + '/sync', { headers: apiHeaders() });
+    if (!res.ok) return null;
+    const result = await res.json();
+    return result.data;
+  } catch (e) { console.warn('API load error:', e); return null; }
+}
+
+async function apiSaveCrmData(data) {
+  if (!authToken) return;
+  try {
+    await fetch(API_URL + '/sync', {
+      method: 'PUT',
+      headers: apiHeaders(),
+      body: JSON.stringify(data)
+    });
+  } catch (e) { console.warn('API save error:', e); }
+}
+
 // ==================== i18n SYSTEM ====================
 let currentLang = 'de';
 
@@ -5280,30 +5337,58 @@ function renderDetailTimeline() {
 var _crmSaveTimer = null;
 var _crmDirty = false;
 
+function buildCrmDataObject() {
+  return {
+    leads: leads,
+    nextId: nextId,
+    reservierungen: typeof reservierungen !== 'undefined' ? reservierungen : [],
+    calEvents: typeof calEvents !== 'undefined' ? calEvents : [],
+    calNextId: typeof calNextId !== 'undefined' ? calNextId : 11,
+    dateiFolders: typeof dateiFolders !== 'undefined' ? dateiFolders : [],
+    dateiFiles: typeof dateiFiles !== 'undefined' ? dateiFiles : [],
+    dateiNextId: typeof dateiNextId !== 'undefined' ? dateiNextId : 20,
+    folderNextId: typeof folderNextId !== 'undefined' ? folderNextId : 10,
+    standardwerte: typeof standardwerte !== 'undefined' ? standardwerte : {},
+    crmNotifications: typeof crmNotifications !== 'undefined' ? crmNotifications : [],
+    finanzPartner: typeof finanzPartner !== 'undefined' ? finanzPartner : [],
+    aufgaben: typeof aufgaben !== 'undefined' ? aufgaben : [],
+    aufgabenNextId: typeof aufgabenNextId !== 'undefined' ? aufgabenNextId : 7,
+    emailVorlagen: typeof emailVorlagen !== 'undefined' ? emailVorlagen : [],
+    emailVorlagenNextId: typeof emailVorlagenNextId !== 'undefined' ? emailVorlagenNextId : 6,
+    followUpRules: typeof followUpRules !== 'undefined' ? followUpRules : [],
+    scoringRules: typeof scoringRules !== 'undefined' ? scoringRules : [],
+    scoringRulesNextId: typeof scoringRulesNextId !== 'undefined' ? scoringRulesNextId : 13
+  };
+}
+
+function applyCrmData(data) {
+  if (data.leads && data.leads.length > 0) { leads.length = 0; data.leads.forEach(function(l) { leads.push(l); }); }
+  if (data.nextId) nextId = data.nextId;
+  if (data.reservierungen && typeof reservierungen !== 'undefined') { reservierungen.length = 0; data.reservierungen.forEach(function(r) { reservierungen.push(r); }); }
+  if (data.calEvents && typeof calEvents !== 'undefined') { calEvents.length = 0; data.calEvents.forEach(function(e) { calEvents.push(e); }); }
+  if (typeof data.calNextId === 'number' && typeof calNextId !== 'undefined') calNextId = data.calNextId;
+  if (data.dateiFolders && typeof dateiFolders !== 'undefined') { dateiFolders.length = 0; data.dateiFolders.forEach(function(f) { dateiFolders.push(f); }); }
+  if (data.dateiFiles && typeof dateiFiles !== 'undefined') { dateiFiles.length = 0; data.dateiFiles.forEach(function(f) { dateiFiles.push(f); }); }
+  if (typeof data.dateiNextId === 'number' && typeof dateiNextId !== 'undefined') dateiNextId = data.dateiNextId;
+  if (typeof data.folderNextId === 'number' && typeof folderNextId !== 'undefined') folderNextId = data.folderNextId;
+  if (data.standardwerte && typeof standardwerte !== 'undefined') Object.assign(standardwerte, data.standardwerte);
+  if (data.crmNotifications && typeof crmNotifications !== 'undefined') { crmNotifications.length = 0; data.crmNotifications.forEach(function(n) { crmNotifications.push(n); }); }
+  if (data.finanzPartner && typeof finanzPartner !== 'undefined') { finanzPartner.length = 0; data.finanzPartner.forEach(function(p) { finanzPartner.push(p); }); }
+  if (data.aufgaben && typeof aufgaben !== 'undefined') { aufgaben.length = 0; data.aufgaben.forEach(function(a) { aufgaben.push(a); }); }
+  if (typeof data.aufgabenNextId === 'number') aufgabenNextId = data.aufgabenNextId;
+  if (data.emailVorlagen && typeof emailVorlagen !== 'undefined') { emailVorlagen.length = 0; data.emailVorlagen.forEach(function(v) { emailVorlagen.push(v); }); }
+  if (typeof data.emailVorlagenNextId === 'number') emailVorlagenNextId = data.emailVorlagenNextId;
+  if (data.followUpRules && typeof followUpRules !== 'undefined') { followUpRules.length = 0; data.followUpRules.forEach(function(r) { followUpRules.push(r); }); }
+  if (data.scoringRules && typeof scoringRules !== 'undefined') { scoringRules.length = 0; data.scoringRules.forEach(function(r) { scoringRules.push(r); }); }
+  if (typeof data.scoringRulesNextId === 'number') scoringRulesNextId = data.scoringRulesNextId;
+}
+
 function saveCrmData() {
   try {
-    var data = {
-      leads: leads,
-      nextId: nextId,
-      reservierungen: typeof reservierungen !== 'undefined' ? reservierungen : [],
-      calEvents: typeof calEvents !== 'undefined' ? calEvents : [],
-      calNextId: typeof calNextId !== 'undefined' ? calNextId : 11,
-      dateiFolders: typeof dateiFolders !== 'undefined' ? dateiFolders : [],
-      dateiFiles: typeof dateiFiles !== 'undefined' ? dateiFiles : [],
-      dateiNextId: typeof dateiNextId !== 'undefined' ? dateiNextId : 20,
-      folderNextId: typeof folderNextId !== 'undefined' ? folderNextId : 10,
-      standardwerte: typeof standardwerte !== 'undefined' ? standardwerte : {},
-      crmNotifications: typeof crmNotifications !== 'undefined' ? crmNotifications : [],
-      finanzPartner: typeof finanzPartner !== 'undefined' ? finanzPartner : [],
-      aufgaben: typeof aufgaben !== 'undefined' ? aufgaben : [],
-      aufgabenNextId: typeof aufgabenNextId !== 'undefined' ? aufgabenNextId : 7,
-      emailVorlagen: typeof emailVorlagen !== 'undefined' ? emailVorlagen : [],
-      emailVorlagenNextId: typeof emailVorlagenNextId !== 'undefined' ? emailVorlagenNextId : 6,
-      followUpRules: typeof followUpRules !== 'undefined' ? followUpRules : [],
-      scoringRules: typeof scoringRules !== 'undefined' ? scoringRules : [],
-      scoringRulesNextId: typeof scoringRulesNextId !== 'undefined' ? scoringRulesNextId : 13
-    };
+    var data = buildCrmDataObject();
     localStorage.setItem('crmViPlusData', JSON.stringify(data));
+    // Sync to backend
+    apiSaveCrmData(data);
     _crmDirty = false;
   } catch(e) { console.warn('CRM save error:', e); }
 }
@@ -5313,26 +5398,8 @@ function loadCrmData() {
     var raw = localStorage.getItem('crmViPlusData');
     if (!raw) return false;
     var data = JSON.parse(raw);
-    if (data.leads && data.leads.length > 0) { leads.length = 0; data.leads.forEach(function(l) { leads.push(l); }); }
-    if (data.nextId) nextId = data.nextId;
-    if (data.reservierungen && typeof reservierungen !== 'undefined') { reservierungen.length = 0; data.reservierungen.forEach(function(r) { reservierungen.push(r); }); }
-    if (data.calEvents && typeof calEvents !== 'undefined') { calEvents.length = 0; data.calEvents.forEach(function(e) { calEvents.push(e); }); }
-    if (typeof data.calNextId === 'number' && typeof calNextId !== 'undefined') calNextId = data.calNextId;
-  crmDataChanged();
-    if (data.dateiFolders && typeof dateiFolders !== 'undefined') { dateiFolders.length = 0; data.dateiFolders.forEach(function(f) { dateiFolders.push(f); }); }
-    if (data.dateiFiles && typeof dateiFiles !== 'undefined') { dateiFiles.length = 0; data.dateiFiles.forEach(function(f) { dateiFiles.push(f); }); }
-    if (typeof data.dateiNextId === 'number' && typeof dateiNextId !== 'undefined') dateiNextId = data.dateiNextId;
-    if (typeof data.folderNextId === 'number' && typeof folderNextId !== 'undefined') folderNextId = data.folderNextId;
-    if (data.standardwerte && typeof standardwerte !== 'undefined') Object.assign(standardwerte, data.standardwerte);
-    if (data.crmNotifications && typeof crmNotifications !== 'undefined') { crmNotifications.length = 0; data.crmNotifications.forEach(function(n) { crmNotifications.push(n); }); }
-    if (data.finanzPartner && typeof finanzPartner !== 'undefined') { finanzPartner.length = 0; data.finanzPartner.forEach(function(p) { finanzPartner.push(p); }); }
-    if (data.aufgaben && typeof aufgaben !== 'undefined') { aufgaben.length = 0; data.aufgaben.forEach(function(a) { aufgaben.push(a); }); }
-    if (typeof data.aufgabenNextId === 'number') aufgabenNextId = data.aufgabenNextId;
-    if (data.emailVorlagen && typeof emailVorlagen !== 'undefined') { emailVorlagen.length = 0; data.emailVorlagen.forEach(function(v) { emailVorlagen.push(v); }); }
-    if (typeof data.emailVorlagenNextId === 'number') emailVorlagenNextId = data.emailVorlagenNextId;
-    if (data.followUpRules && typeof followUpRules !== 'undefined') { followUpRules.length = 0; data.followUpRules.forEach(function(r) { followUpRules.push(r); }); }
-    if (data.scoringRules && typeof scoringRules !== 'undefined') { scoringRules.length = 0; data.scoringRules.forEach(function(r) { scoringRules.push(r); }); }
-    if (typeof data.scoringRulesNextId === 'number') scoringRulesNextId = data.scoringRulesNextId;
+    applyCrmData(data);
+    crmDataChanged();
     return true;
   } catch(e) { console.warn('CRM load error:', e); return false; }
 }
@@ -5396,7 +5463,9 @@ function exportVsPDF() {
 
 // ==================== FUNCTIONS ====================
 
-function doLogin() {
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPassword').value;
   const role = document.getElementById('loginRole').value;
   const roleNames = {
     admin: t('Admin','Admin'),
@@ -5404,25 +5473,61 @@ function doLogin() {
     kunde: t('Kunde','Customer')
   };
 
-  loadCrmData();
-  document.getElementById('loginScreen').classList.add('hidden');
-  document.getElementById('app').classList.add('active');
-  document.getElementById('userRole').textContent = roleNames[role];
+  // Authenticate via backend
+  try {
+    const loginBtn = document.getElementById('loginBtn');
+    loginBtn.textContent = t('Anmelden...','Logging in...');
+    loginBtn.disabled = true;
 
-  // Admin section visibility
-  document.getElementById('adminSection').style.display = role === 'admin' ? 'block' : 'none';
-  // Admin-only Elemente (z.B. News-Formular)
-  document.querySelectorAll('.admin-only').forEach(el => el.style.display = role === 'admin' ? '' : 'none');
+    let user;
+    try {
+      user = await apiLogin(email, password);
+    } catch (loginErr) {
+      // If user doesn't exist, register automatically
+      if (loginErr.message.includes('Invalid credentials') || loginErr.message.includes('nicht')) {
+        const roleMap = { admin: 'ADMIN', partner: 'AGENT', kunde: 'VIEWER' };
+        user = await apiRegister(email.split('@')[0], email, password, roleMap[role]);
+      } else {
+        throw loginErr;
+      }
+    }
 
-  renderKanban();
-  renderDashboard();
-  renderDashCalWidget();
-  updateReservierungenBadge();
-  updateNewsBadge();
-  showNotification(t('Willkommen bei CRM VI PLUS!','Welcome to CRM VI PLUS!'), 'success');
+    // Load data from server first, fall back to localStorage
+    const serverData = await apiLoadCrmData();
+    if (serverData) {
+      applyCrmData(serverData);
+    } else {
+      loadCrmData();
+      // Sync existing localStorage data to server
+      saveCrmData();
+    }
+
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('app').classList.add('active');
+    document.getElementById('userRole').textContent = roleNames[role];
+
+    // Admin section visibility
+    document.getElementById('adminSection').style.display = role === 'admin' ? 'block' : 'none';
+    document.querySelectorAll('.admin-only').forEach(el => el.style.display = role === 'admin' ? '' : 'none');
+
+    renderKanban();
+    renderDashboard();
+    renderDashCalWidget();
+    updateReservierungenBadge();
+    updateNewsBadge();
+    showNotification(t('Willkommen bei CRM VI PLUS!','Welcome to CRM VI PLUS!'), 'success');
+  } catch (error) {
+    showNotification(error.message || t('Login fehlgeschlagen','Login failed'), 'danger');
+  } finally {
+    const loginBtn = document.getElementById('loginBtn');
+    loginBtn.textContent = t('Anmelden','Login');
+    loginBtn.disabled = false;
+  }
 }
 
 function doLogout() {
+  authToken = null;
+  localStorage.removeItem('crmToken');
   document.getElementById('loginScreen').classList.remove('hidden');
   document.getElementById('app').classList.remove('active');
   document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));

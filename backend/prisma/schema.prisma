@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  AGENT
+  VIEWER
+}
+
+enum ContactStatus {
+  LEAD
+  PROSPECT
+  CUSTOMER
+  INACTIVE
+}
+
+enum PropertyType {
+  APARTMENT
+  HOUSE
+  COMMERCIAL
+  LAND
+}
+
+enum PropertyStatus {
+  AVAILABLE
+  RESERVED
+  SOLD
+  RENTED
+}
+
+enum DealStage {
+  QUALIFICATION
+  PROPOSAL
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+enum ActivityType {
+  CALL
+  EMAIL
+  MEETING
+  NOTE
+  TASK
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(AGENT)
+  createdAt DateTime @default(now())
+
+  deals      Deal[]
+  activities Activity[]
+  crmData    CrmData?
+
+  @@map("users")
+}
+
+model CrmData {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  data      Json
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("crm_data")
+}
+
+model Contact {
+  id         String        @id @default(uuid())
+  name       String
+  email      String?
+  phone      String?
+  company    String?
+  status     ContactStatus @default(LEAD)
+  assignedTo String?
+  notes      String?
+  createdAt  DateTime      @default(now())
+
+  properties Property[]
+  deals      Deal[]
+  activities Activity[]
+
+  @@map("contacts")
+}
+
+model Property {
+  id        String         @id @default(uuid())
+  title     String
+  type      PropertyType
+  price     Float
+  location  String?
+  status    PropertyStatus @default(AVAILABLE)
+  contactId String?
+  createdAt DateTime       @default(now())
+
+  contact Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  deals   Deal[]
+
+  @@map("properties")
+}
+
+model Deal {
+  id         String    @id @default(uuid())
+  title      String
+  stage      DealStage @default(QUALIFICATION)
+  value      Float
+  contactId  String?
+  propertyId String?
+  userId     String?
+  createdAt  DateTime  @default(now())
+
+  contact  Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  property Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  user     User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  activities Activity[]
+
+  @@map("deals")
+}
+
+model Activity {
+  id        String       @id @default(uuid())
+  type      ActivityType
+  note      String?
+  dealId    String?
+  contactId String?
+  userId    String?
+  createdAt DateTime     @default(now())
+
+  deal    Deal?    @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  contact Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("activities")
+}
