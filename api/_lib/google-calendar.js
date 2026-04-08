@@ -179,7 +179,8 @@ function crmEventToGoogleBody(e, tz = 'Europe/Berlin') {
     extendedProperties: {
       private: {
         crm_id: String(e.id),
-        crm_type: e.type || 'intern'
+        crm_type: e.type || 'intern',
+        ...(e.customType ? { crm_custom_type: String(e.customType) } : {})
       }
     }
   };
@@ -232,6 +233,7 @@ function googleEventToCrm(ge, tz = 'Europe/Berlin') {
     start: startStr,
     end: endStr,
     type: (ge.extendedProperties && ge.extendedProperties.private && ge.extendedProperties.private.crm_type) || 'google',
+    customType: (ge.extendedProperties && ge.extendedProperties.private && ge.extendedProperties.private.crm_custom_type) || undefined,
     source: 'google'
   };
 }

@@ -2060,6 +2060,11 @@
   .cal-event.notar { background:linear-gradient(135deg,#fef3c7,#fde68a);border-left:3px solid #f59e0b;color:#92400e; }
   .cal-event.intern { background:linear-gradient(135deg,#e0e7ff,#c7d2fe);border-left:3px solid #6366f1;color:#3730a3; }
   .cal-event.calendly { background:linear-gradient(135deg,#fce4ec,#f8bbd0);border-left:3px solid #e91e63;color:#880e4f; }
+  .cal-event.fahrt { background:linear-gradient(135deg,#fef3c7,#fcd34d);border-left:3px solid #d97706;color:#7c2d12; }
+  .cal-event.privat { background:linear-gradient(135deg,#f3e8ff,#e9d5ff);border-left:3px solid #a855f7;color:#581c87; }
+  .cal-event.sport { background:linear-gradient(135deg,#fee2e2,#fecaca);border-left:3px solid #ef4444;color:#7f1d1d; }
+  .cal-event.team { background:linear-gradient(135deg,#cffafe,#a5f3fc);border-left:3px solid #06b6d4;color:#155e75; }
+  .cal-event.custom { background:linear-gradient(135deg,#f1f5f9,#e2e8f0);border-left:3px solid #64748b;color:#1e293b; }
 
   .cal-month-grid { display:grid;grid-template-columns:repeat(7,1fr);border:1px solid var(--border);border-radius:12px;overflow:hidden;background:white; }
   .cal-month-header { background:var(--primary);color:white;padding:8px;text-align:center;font-size:12px;font-weight:600; }
@@ -4092,12 +4097,20 @@
     </div>
     <div class="cal-detail-body">
       <div class="form-group"><label>Termintyp</label>
-        <select id="calNewType" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+        <select id="calNewType" onchange="onCalTypeChange()" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+          <option value="beratung">💼 Beratung</option>
           <option value="besichtigung">🏠 Besichtigung</option>
-          <option value="beratung">💼 Beratungsgespräch</option>
+          <option value="fahrt">🚗 Fahrt</option>
+          <option value="privat">🌿 Privat</option>
+          <option value="sport">🏋️ Sport</option>
+          <option value="team">👥 Team-Meeting</option>
           <option value="notar">📑 Notartermin</option>
           <option value="intern">🔵 Interner Termin</option>
+          <option value="custom">✏️ Eigene Terminart…</option>
         </select>
+      </div>
+      <div class="form-group" id="calNewCustomTypeWrap" style="display:none"><label>Eigene Terminart</label>
+        <input type="text" id="calNewCustomType" placeholder="z.B. Workshop, Coaching, Gerichtstermin…" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px">
       </div>
       <div class="form-group"><label>Titel</label>
         <input type="text" id="calNewTitle" placeholder="z.B. Besichtigung Residenz am Park — Hr. Müller" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px">
@@ -13014,7 +13027,7 @@ function renderDashboard() {
   if (upcomingEvents.length === 0) {
     eventsHtml = '<p style="color:var(--text-light);font-size:13px;text-align:center;padding:20px">' + t('Keine anstehenden Termine','No upcoming appointments') + '</p>';
   } else {
-    var typeIcons = { besichtigung: '🏠', beratung: '💬', notar: '📝', intern: '👥', calendly: '📅' };
+    var typeIcons = { besichtigung: '🏠', beratung: '💬', notar: '📝', intern: '👥', calendly: '📅', fahrt: '🚗', privat: '🌿', sport: '🏋️', team: '👥', custom: '✏️' };
     upcomingEvents.forEach(function(e) {
       var dateLabel = typeof fmtDateShort === 'function' ? fmtDateShort(e.date) : e.date;
       eventsHtml += '<div class="dash-event-item" onclick="showPage(\'kalender\', document.querySelectorAll(\'.nav-item\')[3])"><div class="dash-event-time">' + e.start + '<br><span style="font-size:10px;color:var(--text-light)">' + dateLabel + '</span></div><div class="dash-event-info"><h4>' + (typeIcons[e.type] || '📅') + ' ' + e.title + '</h4><p>' + (e.kunde || '') + (e.ort ? ' · ' + e.ort : '') + '</p></div></div>';
@@ -13702,7 +13715,7 @@ function showCalDetail(id) {
   const e = calEvents.find(ev => ev.id === id);
   if (!e) return;
   document.getElementById('calDetailTitle').textContent = e.title;
-  const typeLabels = { besichtigung:t('🏠 Besichtigung','🏠 Viewing'), beratung:t('💼 Beratung','💼 Consultation'), notar:t('📑 Notartermin','📑 Notary Appt.'), intern:t('🔵 Intern','🔵 Internal'), calendly:'📆 Calendly' };
+  const typeLabels = { besichtigung:t('🏠 Besichtigung','🏠 Viewing'), beratung:t('💼 Beratung','💼 Consultation'), notar:t('📑 Notartermin','📑 Notary Appt.'), intern:t('🔵 Intern','🔵 Internal'), calendly:'📆 Calendly', fahrt:t('🚗 Fahrt','🚗 Travel'), privat:t('🌿 Privat','🌿 Private'), sport:t('🏋️ Sport','🏋️ Sport'), team:t('👥 Team-Meeting','👥 Team meeting'), custom:'✏️ ' + (e && e.customType ? e.customType : t('Eigene Terminart','Custom')) };
   const sourceLabels = { crm:'CRM VI PLUS', calendly:'Calendly', google:t('Google Kalender','Google Calendar'), outlook:'Outlook' };
   let html = `
     <div class="cal-detail-row"><span class="icon">📌</span><span class="label">${t('Typ','Type')}</span><span class="value"><span class="cal-event ${e.type}" style="position:static;display:inline-block;padding:3px 10px;font-size:12px">${typeLabels[e.type]||e.type}</span></span></div>
@@ -13739,29 +13752,67 @@ function calDeleteEvent(id) {
   showNotification(t('Termin gelöscht','Appointment deleted'), 'success');
 }
 
+// Standard-Dauer in Minuten je Termintyp. fahrt = vom User frei wählbar.
+const calTypeDurations = {
+  beratung: 60,
+  besichtigung: 60,
+  fahrt: 60,
+  privat: 60,
+  sport: 60,
+  team: 60,
+  notar: 60,
+  intern: 60,
+  custom: 60
+};
+
+function addMinutesToTime(hhmm, minutes) {
+  const [h, m] = (hhmm || '10:00').split(':').map(Number);
+  const total = h * 60 + m + minutes;
+  const nh = Math.floor((total % (24*60)) / 60);
+  const nm = total % 60;
+  return String(nh).padStart(2,'0') + ':' + String(nm).padStart(2,'0');
+}
+
+function onCalTypeChange() {
+  const type = document.getElementById('calNewType').value;
+  // Custom-Feld ein-/ausblenden
+  const wrap = document.getElementById('calNewCustomTypeWrap');
+  if (wrap) wrap.style.display = type === 'custom' ? '' : 'none';
+  // Auto-Dauer auf End-Uhrzeit anwenden
+  const startEl = document.getElementById('calNewTimeStart');
+  const endEl = document.getElementById('calNewTimeEnd');
+  if (!startEl || !endEl) return;
+  const dur = calTypeDurations[type] || 60;
+  endEl.value = addMinutesToTime(startEl.value || '10:00', dur);
+}
+
 function openCalNewEvent(date, time) {
   const modal = document.getElementById('calNewEventModal');
   document.getElementById('calNewDate').value = date || getTodayStr();
   if (time) {
     document.getElementById('calNewTimeStart').value = time;
-    const h = parseInt(time.split(':')[0]);
-    document.getElementById('calNewTimeEnd').value = String(h + 1).padStart(2,'0') + ':00';
   }
   document.getElementById('calNewTitle').value = '';
   document.getElementById('calNewKunde').value = '';
   document.getElementById('calNewOrt').value = '';
   document.getElementById('calNewNotes').value = '';
+  const customInput = document.getElementById('calNewCustomType');
+  if (customInput) customInput.value = '';
+  // Anfangs-Default auf "beratung"
+  const typeSel = document.getElementById('calNewType');
+  if (typeSel && !typeSel.value) typeSel.value = 'beratung';
+  onCalTypeChange();
   // Fill Objekte select
-  const sel = document.getElementById('calNewObjekt');
-  sel.innerHTML = '<option value="">— ' + t('Kein Objekt','No Property') + ' —</option>';
+  const objSel = document.getElementById('calNewObjekt');
+  objSel.innerHTML = '<option value="">— ' + t('Kein Objekt','No Property') + ' —</option>';
   if (typeof projekte !== 'undefined') {
     projekte.forEach(p => {
       if (p.wohnungen && p.wohnungen.length > 0) {
         p.wohnungen.forEach(w => {
-          sel.innerHTML += `<option value="${p.name} — ${w.name}">${p.name} — ${w.name}</option>`;
+          objSel.innerHTML += `<option value="${p.name} — ${w.name}">${p.name} — ${w.name}</option>`;
         });
       } else {
-        sel.innerHTML += `<option value="${p.name}">${p.name}</option>`;
+        objSel.innerHTML += `<option value="${p.name}">${p.name}</option>`;
       }
     });
   }
@@ -13773,11 +13824,17 @@ function calSaveNewEvent() {
   const date = document.getElementById('calNewDate').value;
   const start = document.getElementById('calNewTimeStart').value;
   const end = document.getElementById('calNewTimeEnd').value;
-  const type = document.getElementById('calNewType').value;
+  let type = document.getElementById('calNewType').value;
+  let customLabel = '';
+  if (type === 'custom') {
+    customLabel = (document.getElementById('calNewCustomType').value || '').trim();
+    if (!customLabel) { showNotification(t('Bitte eigene Terminart angeben','Please enter custom appointment type'),'warning'); return; }
+  }
   if (!title || !date || !start) { showNotification(t('Bitte Titel, Datum und Uhrzeit angeben','Please enter title, date and time'),'warning'); return; }
   calEvents.push({
     id: calNextId++,
     type: type,
+    customType: customLabel || undefined,
     title: title,
     date: date,
     start: start,
@@ -13948,7 +14005,8 @@ async function syncGoogleCalendar(silent) {
       start: e.start,
       end: e.end,
       type: e.type,
-      notiz: e.notiz || '',
+      customType: e.customType || '',
+      notiz: e.notes || e.notiz || '',
       ort: e.ort || '',
       kunde: e.kunde || ''
     }));
@@ -14010,7 +14068,7 @@ function renderDashCalWidget() {
   if (!el) return;
   const todayStr = getTodayStr();
   const todayEvents = calEvents.filter(e => e.date === todayStr).sort((a,b) => a.start.localeCompare(b.start));
-  const dotColors = { besichtigung:'#3b82f6', beratung:'#10b981', notar:'#f59e0b', intern:'#6366f1', calendly:'#e91e63' };
+  const dotColors = { besichtigung:'#3b82f6', beratung:'#10b981', notar:'#f59e0b', intern:'#6366f1', calendly:'#e91e63', fahrt:'#d97706', privat:'#a855f7', sport:'#ef4444', team:'#06b6d4', custom:'#64748b' };
 
   if (todayEvents.length === 0) {
     el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-light)"><div style="font-size:32px;margin-bottom:8px">🎉</div><p style="font-size:13px">' + t('Keine Termine heute — Zeit für Akquise!','No appointments today — time for prospecting!') + '</p></div>';
