@@ -5737,81 +5737,32 @@ async function submitInviteUser() {
   btn.disabled = true;
   btn.textContent = 'Wird eingeladen...';
 
-  const tempPassword = generateTempPassword();
-  const roleMap = { admin: 'ADMIN', partner: 'AGENT', kunde: 'VIEWER' };
-
   try {
-    // Use a separate supabase client so the admin's session stays intact
-    const tempClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+    const r = await apiFetch('/api/users/invite', {
+      method: 'POST',
+      body: JSON.stringify({
+        firstName, lastName, email, phone, role,
+        redirect_to: window.location.origin + '/'
+      })
     });
-
-    const { data, error } = await tempClient.auth.signUp({
-      email: email,
-      password: tempPassword,
-      options: {
-        data: {
-          first_name: firstName,
-          last_name: lastName,
-          name: firstName + ' ' + lastName,
-          phone: phone || '',
-          role: roleMap[role],
-          force_password_change: true,
-          profile_complete: false,
-          invited_by: currentUser ? currentUser.email : null,
-          invited_at: new Date().toISOString()
-        },
-        emailRedirectTo: window.location.origin + '/'
-      }
-    });
-
-    if (error) throw error;
-
-    // Trigger auto-populates user_profiles, but we update invited_by/email to be safe
-    try {
-      if (data.user && data.user.id) {
-        await tempClient.from('user_profiles').update({
-          invited_by: currentUser ? currentUser.email : null,
-          email: email,
-          first_name: firstName,
-          last_name: lastName,
-          phone: phone || '',
-          role: roleMap[role],
-          status: 'invited'
-        }).eq('user_id', data.user.id);
-      }
-    } catch (upErr) { console.warn('user_profiles update:', upErr); }
 
     // Refresh the list if we're on that page
     if (typeof renderBenutzerList === 'function') renderBenutzerList();
 
-    // Trigger an actual email via the configured SMTP (Strato).
-    // Since "Confirm email" is disabled, signUp() does NOT send any mail.
-    // resetPasswordForEmail() reliably sends via the Custom SMTP settings.
-    let emailStatus = '';
-    try {
-      const { error: mailErr } = await tempClient.auth.resetPasswordForEmail(email, {
-        redirectTo: window.location.origin + '/'
-      });
-      if (mailErr) {
-        emailStatus = '<div style="background:#fef2f2;color:#991b1b;padding:8px;border-radius:6px;margin-top:8px;font-size:12px">⚠️ E-Mail-Versand fehlgeschlagen: ' + (mailErr.message || mailErr) + '</div>';
-      } else {
-        emailStatus = '<div style="background:#ecfdf5;color:#065f46;padding:8px;border-radius:6px;margin-top:8px;font-size:12px">📧 E-Mail mit Einrichtungslink wurde an <strong>' + email + '</strong> gesendet.</div>';
-      }
-    } catch (mailEx) {
-      emailStatus = '<div style="background:#fef2f2;color:#991b1b;padding:8px;border-radius:6px;margin-top:8px;font-size:12px">⚠️ E-Mail-Versand fehlgeschlagen: ' + (mailEx.message || mailEx) + '</div>';
-    }
+    const emailStatus = r.email_sent
+      ? '<div style="background:#ecfdf5;color:#065f46;padding:8px;border-radius:6px;margin-top:8px;font-size:12px">📧 Willkommens-E-Mail mit Einrichtungslink wurde an <strong>' + email + '</strong> gesendet.</div>'
+      : '<div style="background:#fef2f2;color:#991b1b;padding:8px;border-radius:6px;margin-top:8px;font-size:12px">⚠️ ' + (r.warning || 'E-Mail-Versand fehlgeschlagen') + '</div>';
 
     const result = document.getElementById('inviteResult');
     result.style.display = 'block';
     result.innerHTML = '<strong>✅ Einladung erstellt!</strong><br>' +
       '<span style="color:var(--text-light)">Der Benutzer <strong>' + email + '</strong> wurde angelegt.</span>' +
       emailStatus +
-      '<div style="background:white;padding:8px;border-radius:6px;border:1px dashed var(--gold);margin-top:8px">' +
-      '<strong>Temporäres Passwort (Backup):</strong><br>' +
-      '<code style="font-size:15px;color:var(--primary);user-select:all">' + tempPassword + '</code>' +
-      '</div>' +
-      '<p style="margin-top:8px;font-size:12px;color:var(--text-light)">Der Benutzer erhält eine E-Mail mit einem Link, um sein eigenes Passwort zu setzen. Falls keine Mail ankommt, kannst du ihm das temporäre Passwort manuell mitteilen.</p>';
+      (r.temp_password ? '<div style="background:white;padding:8px;border-radius:6px;border:1px dashed var(--gold);margin-top:8px">' +
+        '<strong>Temporäres Passwort (Backup):</strong><br>' +
+        '<code style="font-size:15px;color:var(--primary);user-select:all">' + r.temp_password + '</code>' +
+        '</div>' : '') +
+      '<p style="margin-top:8px;font-size:12px;color:var(--text-light)">Der Benutzer erhält eine schöne Willkommens-Mail mit einem Link, um sein eigenes Passwort zu setzen.</p>';
 
     btn.textContent = 'Erneut einladen';
     btn.disabled = false;
