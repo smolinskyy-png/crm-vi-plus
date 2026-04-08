@@ -6501,11 +6501,37 @@ function renderKanban() {
   document.querySelector('.nav-item .badge').textContent = leads.length;
 }
 
+function getLeadAgeDays(lead) {
+  if (!lead || !lead.date) return null;
+  const parts = String(lead.date).split('.');
+  if (parts.length !== 3) return null;
+  const created = new Date(parts[2], parts[1] - 1, parts[0]);
+  if (isNaN(created.getTime())) return null;
+  const now = new Date();
+  const ms = now.setHours(0,0,0,0) - created.setHours(0,0,0,0);
+  return Math.max(0, Math.floor(ms / 86400000));
+}
+
+function formatLeadAge(days) {
+  if (days == null) return '—';
+  if (days === 0) return t('heute','today');
+  if (days === 1) return t('1 Tag','1 day');
+  return days + ' ' + t('Tage','days');
+}
+
+function getLeadAgeColor(days) {
+  if (days == null) return '#9ca3af';
+  if (days <= 3) return '#10b981';   // green — fresh
+  if (days <= 14) return '#f59e0b';  // amber — getting older
+  return '#ef4444';                  // red — stale
+}
+
 function renderKanbanCard(lead) {
   const tagClass = { hot: 'tag-hot', warm: 'tag-warm', cold: 'tag-cold', new: 'tag-new' };
   const tagLabel = { hot: t('Heiß','Hot'), warm: t('Warm','Warm'), cold: t('Kalt','Cold'), new: t('Neu','New') };
-  const score = calcVertriebsScore(lead);
-  const scoreColor = getScoreColor(score);
+  const ageDays = getLeadAgeDays(lead);
+  const ageColor = getLeadAgeColor(ageDays);
+  const ageLabel = formatLeadAge(ageDays);
 
   // Notar-Info für Kanban-Karte
   let notarInfo = '';
@@ -6532,9 +6558,9 @@ function renderKanbanCard(lead) {
          ondragstart="dragCard(event, ${lead.id})"
          ondragend="this.classList.remove('dragging')"
          onclick="if(!draggedLeadId) openLeadDetail(${lead.id})">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
         <div class="card-name">${lead.firstName} ${lead.lastName}</div>
-        <div style="background:${scoreColor};color:white;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:bold">${score}</div>
+        <div title="${t('Lead-Alter','Lead age')}" style="background:${ageColor};color:white;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;white-space:nowrap;flex-shrink:0">⏱ ${ageLabel}</div>
       </div>
       <div class="card-details">
         <span>✉ ${lead.email}</span>
