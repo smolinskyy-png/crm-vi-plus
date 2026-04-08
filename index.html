@@ -5111,6 +5111,18 @@
     <div class="form-group"><label>Straße</label><input type="text" id="pAddStrasse" placeholder="Parkstraße 12"></div>
     <div class="form-group"><label>Beschreibung</label><input type="text" id="pAddBeschreibung" placeholder="Kurzbeschreibung des Projekts..."></div>
 
+    <h4 style="font-size:13px;text-transform:uppercase;letter-spacing:0.5px;color:var(--gold-dark);margin:16px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">Titelbild</h4>
+    <div class="file-upload-zone" id="pAddTitelbildZone" style="margin-bottom:10px" onclick="document.getElementById('pAddTitelbildInput').click()"
+         ondragover="event.preventDefault();this.classList.add('drag-over')"
+         ondragleave="this.classList.remove('drag-over')"
+         ondrop="handlePAddTitelbildDrop(event)">
+      <div class="upload-icon">🖼️</div>
+      <p>Titelbild hier ablegen oder klicken</p>
+      <div class="upload-hint">PNG, JPG — wird auf der Projektseite angezeigt</div>
+    </div>
+    <input type="file" id="pAddTitelbildInput" accept="image/*" style="display:none" onchange="handlePAddTitelbildSelect(event)">
+    <div id="pAddTitelbildPreview" style="display:none;margin-bottom:12px;position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--border)"></div>
+
     <h4 style="font-size:13px;text-transform:uppercase;letter-spacing:0.5px;color:var(--gold-dark);margin:16px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">Projekt-Unterlagen</h4>
     <div class="file-upload-zone" style="margin-bottom:10px" onclick="document.getElementById('pAddDokInput').click()"
          ondragover="event.preventDefault();this.classList.add('drag-over')"
@@ -5164,6 +5176,9 @@
       </div>
       <button class="btn btn-outline btn-sm" onclick="closeProjektDetail()">✕</button>
     </div>
+
+    <div id="pDetailTitelbildWrap" style="display:none;margin-bottom:16px;position:relative;border-radius:12px;overflow:hidden;border:1px solid var(--border)"></div>
+    <input type="file" id="pDetailTitelbildInput" accept="image/*" style="display:none" onchange="handlePDetailTitelbildSelect(event)">
 
     <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center" id="pDetailTabs">
       <button class="btn btn-sm active" onclick="switchProjektTab('wohnungen',this)" style="font-size:12px">Wohnungen</button>
@@ -9982,6 +9997,7 @@ async function removeObjDok(dokId) {
 // ==================== PROJEKTE ====================
 
 let pAddDoks = [];
+let pAddTitelbild = null;
 let currentProjektId = null;
 
 // ==================== PROJEKT-FILTER ====================
@@ -10358,12 +10374,13 @@ function renderProjekte() {
     const wohnungen = objekte.filter(o => o.projektId === p.id);
     const freie = wohnungen.filter(o => o.status === 'frei').length;
 
-    // Titelbild: erstes Foto der ersten Wohneinheit
+    // Titelbild: manuell gesetztes Projekt-Titelbild bevorzugen, sonst erstes Foto der ersten Wohneinheit
     const ersteFotos = wohnungen.find(o => o.fotos && o.fotos.length);
-    const imgStyle = ersteFotos
-      ? `background:url(${ersteFotos.fotos[0].data}) center/cover`
+    const titelbildSrc = p.titelbild || (ersteFotos ? ersteFotos.fotos[0].data : null);
+    const imgStyle = titelbildSrc
+      ? `background:url(${titelbildSrc}) center/cover`
       : `background:linear-gradient(135deg,var(--primary) 0%,#1a2a5e 100%);font-size:48px;display:flex;align-items:center;justify-content:center`;
-    const imgInner = ersteFotos ? '' : '🏗️';
+    const imgInner = titelbildSrc ? '' : '🏗️';
 
     // Wohnungstyp (häufigster klasse-Wert)
     const klassen = wohnungen.map(o => o.klasse).filter(Boolean);
@@ -10436,9 +10453,48 @@ function closeProjektModal() {
   document.getElementById('projektAddModal').classList.remove('active');
   document.querySelectorAll('#projektAddModal input').forEach(i => i.value = '');
   pAddDoks = [];
+  pAddTitelbild = null;
   pAddWhgRows = [];
   document.getElementById('pAddDokList').innerHTML = '';
   document.getElementById('pAddWhgList').innerHTML = '';
+  const tbPrev = document.getElementById('pAddTitelbildPreview');
+  if (tbPrev) { tbPrev.innerHTML = ''; tbPrev.style.display = 'none'; }
+  const tbZone = document.getElementById('pAddTitelbildZone');
+  if (tbZone) tbZone.style.display = '';
+}
+
+function handlePAddTitelbildSelect(event) {
+  const f = event.target.files && event.target.files[0];
+  if (f) processPAddTitelbild(f);
+  event.target.value = '';
+}
+function handlePAddTitelbildDrop(event) {
+  event.preventDefault();
+  event.currentTarget.classList.remove('drag-over');
+  const f = event.dataTransfer.files && event.dataTransfer.files[0];
+  if (f) processPAddTitelbild(f);
+}
+function processPAddTitelbild(file) {
+  if (!file.type.startsWith('image/')) { showNotification('Nur Bilddateien erlaubt', 'info'); return; }
+  if (file.size > 10 * 1024 * 1024) { showNotification('Max 10 MB', 'info'); return; }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    pAddTitelbild = e.target.result;
+    renderPAddTitelbildPreview();
+  };
+  reader.readAsDataURL(file);
+}
+function renderPAddTitelbildPreview() {
+  const prev = document.getElementById('pAddTitelbildPreview');
+  const zone = document.getElementById('pAddTitelbildZone');
+  if (!prev || !zone) return;
+  if (!pAddTitelbild) {
+    prev.innerHTML = ''; prev.style.display = 'none'; zone.style.display = ''; return;
+  }
+  prev.innerHTML = `<img src="${pAddTitelbild}" style="width:100%;display:block;max-height:220px;object-fit:cover">
+    <button type="button" class="btn btn-outline btn-sm" style="position:absolute;top:8px;right:8px;color:var(--danger);border-color:var(--danger);background:rgba(0,0,0,.55)" onclick="pAddTitelbild=null;renderPAddTitelbildPreview()">✕ entfernen</button>`;
+  prev.style.display = 'block';
+  zone.style.display = 'none';
 }
 document.getElementById('projektAddModal').addEventListener('click', function(e) { if (e.target === this) closeProjektModal(); });
 
@@ -10529,6 +10585,7 @@ function addProjekt() {
   projekte.push({
     id: pId, name, anbieter, plz, stadt, strasse,
     beschreibung: document.getElementById('pAddBeschreibung').value.trim(),
+    titelbild: pAddTitelbild || null,
     dokumente: [...pAddDoks],
     sichtbarkeit
   });
@@ -10578,6 +10635,9 @@ function openProjektDetail(id) {
   document.getElementById('pDetailName').textContent = p.name;
   document.getElementById('pDetailLocation').textContent = '📍 ' + p.strasse + ', ' + p.plz + ' ' + p.stadt + ' · ' + p.anbieter;
   document.getElementById('pDetailBeschreibung').textContent = p.beschreibung;
+
+  // Titelbild
+  renderPDetailTitelbild();
 
   // Wohnungen in diesem Projekt
   const wohnungen = objekte.filter(o => o.projektId === id);
@@ -10660,6 +10720,61 @@ function switchProjektTab(tab, btn) {
   btn.classList.add('active');
   document.querySelectorAll('#projektDetailModal .obj-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('pTab-' + tab).classList.add('active');
+}
+
+function renderPDetailTitelbild() {
+  const wrap = document.getElementById('pDetailTitelbildWrap');
+  if (!wrap) return;
+  const p = projekte.find(x => x.id === currentProjektId);
+  if (!p) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+  const isAdmin = document.getElementById('userRole').textContent === 'Admin';
+  if (!p.titelbild && !isAdmin) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+  if (p.titelbild) {
+    wrap.style.display = 'block';
+    wrap.innerHTML = `<img src="${p.titelbild}" style="width:100%;display:block;max-height:280px;object-fit:cover">
+      ${isAdmin ? `<div style="position:absolute;top:8px;right:8px;display:flex;gap:6px">
+        <button type="button" class="btn btn-outline btn-sm" style="background:rgba(0,0,0,.55);color:white;border-color:rgba(255,255,255,.5)" onclick="document.getElementById('pDetailTitelbildInput').click()">🖼️ Ändern</button>
+        <button type="button" class="btn btn-outline btn-sm" style="background:rgba(0,0,0,.55);color:#fca5a5;border-color:#fca5a5" onclick="removeProjektTitelbild()">✕ Entfernen</button>
+      </div>` : ''}`;
+  } else {
+    // Admin ohne Titelbild → Upload-Zone
+    wrap.style.display = 'block';
+    wrap.style.border = '2px dashed var(--border)';
+    wrap.innerHTML = `<div onclick="document.getElementById('pDetailTitelbildInput').click()" style="padding:28px;text-align:center;cursor:pointer;color:var(--text-light)">
+      <div style="font-size:32px;margin-bottom:6px">🖼️</div>
+      <div style="font-weight:600;color:var(--text)">Titelbild hochladen</div>
+      <div style="font-size:12px;margin-top:4px">Wird auf der Projektseite angezeigt</div>
+    </div>`;
+  }
+}
+
+function handlePDetailTitelbildSelect(event) {
+  const f = event.target.files && event.target.files[0];
+  event.target.value = '';
+  if (!f) return;
+  if (!f.type.startsWith('image/')) { showNotification('Nur Bilddateien erlaubt', 'info'); return; }
+  if (f.size > 10 * 1024 * 1024) { showNotification('Max 10 MB', 'info'); return; }
+  const p = projekte.find(x => x.id === currentProjektId);
+  if (!p) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    p.titelbild = e.target.result;
+    renderPDetailTitelbild();
+    renderProjekte();
+    crmDataChanged();
+    showNotification('Titelbild gespeichert', 'success');
+  };
+  reader.readAsDataURL(f);
+}
+
+function removeProjektTitelbild() {
+  const p = projekte.find(x => x.id === currentProjektId);
+  if (!p) return;
+  p.titelbild = null;
+  renderPDetailTitelbild();
+  renderProjekte();
+  crmDataChanged();
+  showNotification('Titelbild entfernt', 'info');
 }
 
 function updateProjektSichtbarkeit(projektId, field, checked) {
