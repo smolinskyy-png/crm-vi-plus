@@ -3721,6 +3721,20 @@
 </div>
 
 <!-- MODAL: Neuer Ordner -->
+<!-- MODAL: Benutzer Detail -->
+<div class="modal-overlay" id="benutzerDetailModal">
+  <div class="modal" style="max-width:640px;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+      <div>
+        <h3 id="benutzerDetailName" style="margin-bottom:4px">—</h3>
+        <div id="benutzerDetailBadges" style="display:flex;gap:6px"></div>
+      </div>
+      <button class="btn btn-outline btn-sm" style="padding:4px 10px" onclick="document.getElementById('benutzerDetailModal').classList.remove('active')">✕</button>
+    </div>
+    <div id="benutzerDetailBody" style="font-size:14px"></div>
+  </div>
+</div>
+
 <!-- MODAL: Benutzer einladen -->
 <div class="modal-overlay" id="inviteUserModal">
   <div class="modal" style="max-width:520px">
@@ -5779,12 +5793,14 @@ async function renderBenutzerList() {
       invited: 'background:#fef3c7;color:#92400e'
     };
     const statusLabels = { active: 'Aktiv', invited: 'Eingeladen' };
+    window._benutzerCache = {};
     tbody.innerHTML = data.map(u => {
+      window._benutzerCache[u.id] = u;
       const name = ((u.first_name || '') + ' ' + (u.last_name || '')).trim() || '—';
       const role = u.role || 'AGENT';
       const status = u.status || 'invited';
       const joinedAt = u.invited_at ? new Date(u.invited_at).toLocaleDateString('de-DE') : '—';
-      return '<tr>' +
+      return '<tr style="cursor:pointer" onclick="openBenutzerDetail(\'' + u.id + '\')">' +
         '<td><strong>' + name + '</strong>' + (u.phone ? '<br><small style="color:var(--text-light)">📞 ' + u.phone + '</small>' : '') + '</td>' +
         '<td>' + (u.email || '—') + '</td>' +
         '<td><span class="stage-badge" style="' + (roleColors[role] || '') + '">' + (roleLabels[role] || role) + '</span></td>' +
@@ -5795,6 +5811,61 @@ async function renderBenutzerList() {
   } catch (e) {
     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--danger)">Fehler: ' + (e.message || e) + '</td></tr>';
   }
+}
+
+function openBenutzerDetail(profileId) {
+  const u = (window._benutzerCache || {})[profileId];
+  if (!u) return;
+  const roleLabels = { ADMIN: 'Admin', AGENT: 'Vertriebspartner', VIEWER: 'Kunde' };
+  const roleColors = {
+    ADMIN: 'background:#fef3c7;color:#92400e',
+    AGENT: 'background:#e0e7ff;color:#4338ca',
+    VIEWER: 'background:#dbeafe;color:#1e40af'
+  };
+  const statusColors = {
+    active: 'background:#d1fae5;color:#065f46',
+    invited: 'background:#fef3c7;color:#92400e'
+  };
+  const statusLabels = { active: 'Aktiv', invited: 'Eingeladen' };
+
+  const fullName = ((u.first_name || '') + ' ' + (u.last_name || '')).trim() || '—';
+  document.getElementById('benutzerDetailName').textContent = fullName;
+  const role = u.role || 'AGENT';
+  const status = u.status || 'invited';
+  document.getElementById('benutzerDetailBadges').innerHTML =
+    '<span class="stage-badge" style="' + (roleColors[role] || '') + '">' + (roleLabels[role] || role) + '</span>' +
+    '<span class="stage-badge" style="' + (statusColors[status] || '') + '">' + (statusLabels[status] || status) + '</span>';
+
+  const row = (label, val) => '<div style="display:flex;padding:8px 0;border-bottom:1px solid var(--border)"><div style="width:180px;color:var(--text-light);font-size:13px">' + label + '</div><div style="flex:1;font-weight:500">' + (val || '—') + '</div></div>';
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('de-DE') : '—';
+
+  const hasCompany = u.company_name || u.company_street || u.company_city;
+  let html = '<h4 style="font-size:14px;color:var(--primary);margin:8px 0 4px;padding-top:8px">Persönliche Daten</h4>';
+  html += row('Vorname', u.first_name);
+  html += row('Nachname', u.last_name);
+  html += row('E-Mail', u.email);
+  html += row('Telefon', u.phone);
+
+  html += '<h4 style="font-size:14px;color:var(--primary);margin:16px 0 4px">Firmenanschrift</h4>';
+  if (hasCompany) {
+    html += row('Firmenname', u.company_name);
+    html += row('Straße', u.company_street);
+    html += row('PLZ / Ort', ((u.company_zip || '') + ' ' + (u.company_city || '')).trim());
+    html += row('USt-IdNr', u.company_vat);
+    html += row('Firmentelefon', u.company_phone);
+  } else {
+    html += '<div style="padding:12px;background:var(--bg);border-radius:8px;color:var(--text-light);font-size:13px;text-align:center">Noch nicht vom Benutzer ausgefüllt</div>';
+  }
+
+  html += '<h4 style="font-size:14px;color:var(--primary);margin:16px 0 4px">Account</h4>';
+  html += row('Rolle', roleLabels[role] || role);
+  html += row('Status', statusLabels[status] || status);
+  html += row('Eingeladen am', fmtDate(u.invited_at));
+  html += row('Eingeladen von', u.invited_by);
+  html += row('Beigetreten am', fmtDate(u.joined_at));
+
+  document.getElementById('benutzerDetailBody').innerHTML = html;
+  document.getElementById('benutzerDetailModal').classList.add('active');
 }
 
 async function submitProfileComplete() {
