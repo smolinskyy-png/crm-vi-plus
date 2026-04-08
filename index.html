@@ -1238,9 +1238,35 @@
     background: var(--bg); border: 1px solid var(--border); border-radius: 20px;
     font-size: 12px; cursor: pointer; transition: all 0.2s; user-select: none;
   }
-  .sp-chip:hover { border-color: var(--gold); }
-  .sp-chip.active { background: linear-gradient(135deg, #fef3c7, #fde68a); border-color: var(--gold); color: var(--gold-dark); font-weight: 600; }
+  .sp-chip:hover { border-color: #10b981; }
+  .sp-chip.active {
+    background: linear-gradient(135deg, #d1fae5, #6ee7b7);
+    border-color: #10b981;
+    color: #065f46;
+    font-weight: 600;
+    box-shadow: 0 0 0 1px #10b981 inset;
+  }
+  .sp-chip.active::before { content: '✓ '; font-weight: 700; }
   .sp-chip input[type="checkbox"] { display: none; }
+  .sp-chip-custom { position: relative; padding-right: 28px; }
+  .sp-chip-custom .sp-chip-remove {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    background: rgba(0,0,0,0.08); border: none; border-radius: 50%;
+    width: 18px; height: 18px; cursor: pointer; font-size: 11px;
+    display: flex; align-items: center; justify-content: center; color: #065f46;
+  }
+  .sp-chip-custom .sp-chip-remove:hover { background: #ef4444; color: white; }
+  .sp-custom-input-row { display: flex; gap: 6px; margin-top: 8px; }
+  .sp-custom-input-row input {
+    flex: 1; padding: 6px 12px; border: 1px solid var(--border);
+    border-radius: 20px; font-size: 12px; background: white;
+  }
+  .sp-custom-input-row input:focus { outline: none; border-color: #10b981; }
+  .sp-custom-input-row button {
+    padding: 6px 14px; border-radius: 20px; border: 1px solid #10b981;
+    background: #10b981; color: white; font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  .sp-custom-input-row button:hover { background: #059669; }
 
   /* Lead Notizen */
   .lead-note-card {
@@ -4965,6 +4991,10 @@
               <label class="sp-chip"><input type="checkbox" value="pflegeimmobilie" onchange="updateSuchprofilChip(this)"> Pflegeimmobilie</label>
               <label class="sp-chip"><input type="checkbox" value="neubau" onchange="updateSuchprofilChip(this)"> Neubau</label>
             </div>
+            <div class="sp-custom-input-row">
+              <input type="text" id="spObjektartCustom" placeholder="Eigene Objektart hinzufügen..." onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomSuchprofilChip('objektart');}">
+              <button type="button" onclick="addCustomSuchprofilChip('objektart')">+ Hinzufügen</button>
+            </div>
           </div>
           <!-- Standort -->
           <div class="form-group">
@@ -5030,6 +5060,10 @@
               <label class="sp-chip"><input type="checkbox" value="eigennutzung" onchange="updateSuchprofilChip(this)"> 🏠 Eigennutzung</label>
               <label class="sp-chip"><input type="checkbox" value="inflationsschutz" onchange="updateSuchprofilChip(this)"> 🛡️ Inflationsschutz</label>
               <label class="sp-chip"><input type="checkbox" value="vermoegensaufbau" onchange="updateSuchprofilChip(this)"> 🏗️ Vermögensaufbau</label>
+            </div>
+            <div class="sp-custom-input-row">
+              <input type="text" id="spPrioritaetCustom" placeholder="Eigene Priorität hinzufügen..." onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomSuchprofilChip('prioritaet');}">
+              <button type="button" onclick="addCustomSuchprofilChip('prioritaet')">+ Hinzufügen</button>
             </div>
           </div>
           <!-- Sonstiges -->
@@ -7339,11 +7373,18 @@ function renderSuchprofil() {
   if (!lead) return;
   const sp = lead.suchprofil || {};
 
-  // Objektarten Checkboxes
+  // Remove any previously rendered custom chips (re-rendered below)
+  document.querySelectorAll('#spObjektarten .sp-chip-custom, #spPrioritaeten .sp-chip-custom').forEach(function(el) { el.remove(); });
+
+  // Objektarten Checkboxes (built-in)
   document.querySelectorAll('#spObjektarten .sp-chip input').forEach(function(cb) {
     var checked = sp.objektarten && sp.objektarten.includes(cb.value);
     cb.checked = checked;
     cb.parentElement.classList.toggle('active', checked);
+  });
+  // Custom Objektarten — re-render + auto-check
+  (sp.customObjektarten || []).forEach(function(label) {
+    appendCustomSuchprofilChip('objektart', label, true);
   });
 
   // Standort
@@ -7358,11 +7399,15 @@ function renderSuchprofil() {
   document.getElementById('spMonatlich').value = sp.monatlich || '';
   document.getElementById('spMaxEK').value = sp.maxEK || '';
 
-  // Prioritäten
+  // Prioritäten (built-in)
   document.querySelectorAll('#spPrioritaeten .sp-chip input').forEach(function(cb) {
     var checked = sp.prioritaeten && sp.prioritaeten.includes(cb.value);
     cb.checked = checked;
     cb.parentElement.classList.toggle('active', checked);
+  });
+  // Custom Prioritäten
+  (sp.customPrioritaeten || []).forEach(function(label) {
+    appendCustomSuchprofilChip('prioritaet', label, true);
   });
 
   // Anmerkungen
@@ -7376,23 +7421,63 @@ function updateSuchprofilChip(cb) {
   cb.parentElement.classList.toggle('active', cb.checked);
 }
 
+function appendCustomSuchprofilChip(kind, label, active) {
+  const containerId = kind === 'objektart' ? 'spObjektarten' : 'spPrioritaeten';
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const clean = String(label || '').trim();
+  if (!clean) return;
+  // Avoid duplicates
+  const existing = Array.from(container.querySelectorAll('.sp-chip-custom input')).map(i => i.value.toLowerCase());
+  if (existing.includes(clean.toLowerCase())) return;
+  const chip = document.createElement('label');
+  chip.className = 'sp-chip sp-chip-custom' + (active ? ' active' : '');
+  chip.innerHTML = '<input type="checkbox" data-custom="1" value="' + escHtml(clean) + '"' + (active ? ' checked' : '') + ' onchange="updateSuchprofilChip(this)"> ' + escHtml(clean) +
+    '<button type="button" class="sp-chip-remove" title="Entfernen" onclick="event.preventDefault();event.stopPropagation();this.parentElement.remove();">✕</button>';
+  container.appendChild(chip);
+}
+
+function addCustomSuchprofilChip(kind) {
+  const inputId = kind === 'objektart' ? 'spObjektartCustom' : 'spPrioritaetCustom';
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const val = input.value.trim();
+  if (!val) return;
+  appendCustomSuchprofilChip(kind, val, true);
+  input.value = '';
+  input.focus();
+}
+
 function saveSuchprofil() {
   if (!currentDetailLeadId) return;
   const lead = leads.find(l => l.id === currentDetailLeadId);
   if (!lead) return;
 
   var objektarten = [];
+  var customObjektarten = [];
   document.querySelectorAll('#spObjektarten .sp-chip input:checked').forEach(function(cb) {
-    objektarten.push(cb.value);
+    if (cb.dataset.custom === '1') customObjektarten.push(cb.value);
+    else objektarten.push(cb.value);
+  });
+  // Also persist unchecked custom entries so they don't vanish on save
+  document.querySelectorAll('#spObjektarten .sp-chip-custom input').forEach(function(cb) {
+    if (!cb.checked && customObjektarten.indexOf(cb.value) === -1) customObjektarten.push(cb.value);
   });
 
   var prioritaeten = [];
+  var customPrioritaeten = [];
   document.querySelectorAll('#spPrioritaeten .sp-chip input:checked').forEach(function(cb) {
-    prioritaeten.push(cb.value);
+    if (cb.dataset.custom === '1') customPrioritaeten.push(cb.value);
+    else prioritaeten.push(cb.value);
+  });
+  document.querySelectorAll('#spPrioritaeten .sp-chip-custom input').forEach(function(cb) {
+    if (!cb.checked && customPrioritaeten.indexOf(cb.value) === -1) customPrioritaeten.push(cb.value);
   });
 
   lead.suchprofil = {
     objektarten: objektarten,
+    customObjektarten: customObjektarten,
+    customPrioritaeten: customPrioritaeten,
     plz: document.getElementById('spPLZ').value.trim(),
     umkreis: document.getElementById('spUmkreis').value,
     lage: document.getElementById('spLage').value,
