@@ -5589,7 +5589,11 @@ function buildCrmDataObject() {
     emailVorlagenNextId: typeof emailVorlagenNextId !== 'undefined' ? emailVorlagenNextId : 6,
     followUpRules: typeof followUpRules !== 'undefined' ? followUpRules : [],
     scoringRules: typeof scoringRules !== 'undefined' ? scoringRules : [],
-    scoringRulesNextId: typeof scoringRulesNextId !== 'undefined' ? scoringRulesNextId : 13
+    scoringRulesNextId: typeof scoringRulesNextId !== 'undefined' ? scoringRulesNextId : 13,
+    projekte: typeof projekte !== 'undefined' ? projekte : [],
+    projektNextId: typeof projektNextId !== 'undefined' ? projektNextId : 7,
+    objekte: typeof objekte !== 'undefined' ? objekte : [],
+    objNextId: typeof objNextId !== 'undefined' ? objNextId : 7
   };
 }
 
@@ -5613,6 +5617,10 @@ function applyCrmData(data) {
   if (data.followUpRules && typeof followUpRules !== 'undefined') { followUpRules.length = 0; data.followUpRules.forEach(function(r) { followUpRules.push(r); }); }
   if (data.scoringRules && typeof scoringRules !== 'undefined') { scoringRules.length = 0; data.scoringRules.forEach(function(r) { scoringRules.push(r); }); }
   if (typeof data.scoringRulesNextId === 'number') scoringRulesNextId = data.scoringRulesNextId;
+  if (data.projekte && typeof projekte !== 'undefined') { projekte.length = 0; data.projekte.forEach(function(p) { projekte.push(p); }); }
+  if (typeof data.projektNextId === 'number' && typeof projektNextId !== 'undefined') projektNextId = data.projektNextId;
+  if (data.objekte && typeof objekte !== 'undefined') { objekte.length = 0; data.objekte.forEach(function(o) { objekte.push(o); }); }
+  if (typeof data.objNextId === 'number' && typeof objNextId !== 'undefined') objNextId = data.objNextId;
 }
 
 function saveCrmData() {
@@ -9640,6 +9648,7 @@ function addObjekt() {
 
   closeObjektModal();
   renderObjekte();
+  crmDataChanged();
   showNotification(projekt + ' wurde angelegt!', 'success');
   addCrmNotification('objekt', 'Neues Objekt: <strong>' + projekt + ' — ' + whgNr + '</strong> wurde angelegt', 'projekte');
 }
@@ -10555,6 +10564,7 @@ function addProjekt() {
 
   closeProjektModal();
   renderProjekte();
+  crmDataChanged();
   const whgCount = cards.length;
   showNotification(name + ' mit ' + whgCount + ' Wohneinheit(en) angelegt!', 'success');
   addCrmNotification('objekt', 'Neues Projekt: <strong>' + name + '</strong> mit ' + whgCount + ' Wohneinheit(en) in ' + stadt, 'projekte');
@@ -10657,6 +10667,7 @@ function updateProjektSichtbarkeit(projektId, field, checked) {
   if (!p) return;
   if (!p.sichtbarkeit) p.sichtbarkeit = {};
   p.sichtbarkeit[field] = checked;
+  crmDataChanged();
   showNotification('Sichtbarkeit aktualisiert', 'success');
 }
 
@@ -10671,6 +10682,7 @@ function processPDetailDoks(files) {
     reader.onload = function(e) {
       p.dokumente.push({ id: Date.now() + Math.random(), name: file.name, data: e.target.result, size: file.size });
       renderPDetailDoks();
+      crmDataChanged();
     };
     reader.readAsDataURL(file);
   });
@@ -10770,12 +10782,14 @@ function updateObjektField(id, field, value, type) {
   if (!o) return;
   if (type === 'number') { o[field] = parseFloat(value) || 0; }
   else { o[field] = value; }
+  crmDataChanged();
 }
 
 function deleteObjekt(id) {
   if (!confirm(t('Wohneinheit wirklich löschen?','Really delete unit?'))) return;
   objekte = objekte.filter(o => o.id !== id);
   openObjektTabelle();
+  crmDataChanged();
   showNotification(t('Wohneinheit gelöscht','Unit deleted'), 'info');
 }
 
@@ -10923,6 +10937,7 @@ function addWohneinheit() {
 
   closeWohneinheitModal();
   openProjektDetail(currentProjektId);
+  crmDataChanged();
   showNotification(whgNr + ' wurde angelegt!', 'success');
   addCrmNotification('objekt', 'Neue Wohneinheit: <strong>' + p.name + ' — ' + whgNr + '</strong> wurde angelegt', 'projekte');
 }
