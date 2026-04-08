@@ -326,12 +326,24 @@
 
   .sidebar-user .logout-btn {
     cursor: pointer;
-    color: rgba(255,255,255,0.4);
-    font-size: 18px;
-    transition: color 0.2s;
+    color: white;
+    font-size: 16px;
+    background: rgba(239,68,68,0.15);
+    border: 1px solid rgba(239,68,68,0.3);
+    border-radius: 8px;
+    padding: 8px 12px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
   }
 
-  .sidebar-user .logout-btn:hover { color: var(--danger); }
+  .sidebar-user .logout-btn:hover {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: white;
+  }
 
   /* ========== FOCUS MODE (Sidebar + Topbar ausblenden) ========== */
   .app.focus-mode .sidebar { transform: translateX(-100%); }
@@ -2378,7 +2390,7 @@
         <div class="user-name" id="userName">Oleh S.</div>
         <div class="user-role" id="userRole">Admin</div>
       </div>
-      <div class="logout-btn" onclick="doLogout()" title="Abmelden">⏻</div>
+      <div class="logout-btn" onclick="doLogout()" title="Abmelden">⏻ <span>Logout</span></div>
     </div>
   </nav>
 
@@ -5248,34 +5260,9 @@ const STAGES = [
 
 function stageName(stage) { return currentLang === 'en' ? (stage.nameEn || stage.name) : stage.name; }
 
-let leads = [
-  { id: 1, firstName: 'Anna', lastName: 'Schmidt', email: 'anna.schmidt@gmail.com', phone: '+49 172 1234567', stage: 1, source: 'Website', tag: 'new', job: 'Angestellt', income: 4200, capital: 30000, date: '28.03.2026', files: [], score: 0 },
-  { id: 2, firstName: 'Michael', lastName: 'Braun', email: 'm.braun@web.de', phone: '+49 163 9876543', stage: 1, source: 'Empfehlung', tag: 'hot', job: 'Selbstständig', income: 6500, capital: 80000, date: '27.03.2026', files: [], score: 0 },
-  { id: 3, firstName: 'Julia', lastName: 'Wagner', email: 'j.wagner@outlook.com', phone: '+49 151 5551234', stage: 2, source: 'Social Media', tag: 'warm', job: 'Angestellt', income: 3800, capital: 15000, date: '26.03.2026', files: [], score: 0 },
-  { id: 4, firstName: 'Thomas', lastName: 'Fischer', email: 't.fischer@gmx.de', phone: '+49 170 4443333', stage: 2, source: 'Kaltakquise', tag: 'cold', job: 'Beamter', income: 3200, capital: 45000, date: '25.03.2026', files: [], score: 0 },
-  { id: 5, firstName: 'Sarah', lastName: 'Hoffmann', email: 's.hoffmann@yahoo.de', phone: '+49 176 8887777', stage: 3, source: 'Website', tag: 'hot', job: 'Angestellt', income: 5100, capital: 60000, date: '24.03.2026', files: [], score: 0 },
-  { id: 6, firstName: 'Lukas', lastName: 'Meyer', email: 'l.meyer@gmail.com', phone: '+49 157 2221111', stage: 3, source: 'Empfehlung', tag: 'warm', job: 'Selbstständig', income: 7200, capital: 120000, date: '23.03.2026', files: [], score: 0 },
-  { id: 7, firstName: 'Laura', lastName: 'Schneider', email: 'l.schneider@web.de', phone: '+49 160 6665555', stage: 3, source: 'Messe', tag: 'hot', job: 'Angestellt', income: 4800, capital: 35000, date: '22.03.2026', files: [], score: 0 },
-  { id: 8, firstName: 'Markus', lastName: 'Becker', email: 'm.becker@outlook.com', phone: '+49 173 3332222', stage: 4, source: 'Website', tag: 'hot', job: 'Beamter', income: 4500, capital: 55000, date: '20.03.2026', files: [], score: 0 },
-  { id: 9, firstName: 'Nina', lastName: 'Klein', email: 'n.klein@gmail.com', phone: '+49 152 1119999', stage: 4, source: 'Social Media', tag: 'warm', job: 'Angestellt', income: 3600, capital: 25000, date: '19.03.2026', files: [], score: 0 },
-  { id: 10, firstName: 'Jan', lastName: 'Weber', email: 'j.weber@gmx.de', phone: '+49 178 7776666', stage: 5, source: 'Empfehlung', tag: 'hot', job: 'Selbstständig', income: 8500, capital: 150000, date: '18.03.2026', files: [], score: 0 },
-  { id: 11, firstName: 'Elena', lastName: 'Wolf', email: 'e.wolf@yahoo.de', phone: '+49 155 4443322', stage: 5, source: 'Website', tag: 'warm', job: 'Angestellt', income: 4100, capital: 40000, date: '17.03.2026', files: [], score: 0 },
-  { id: 12, firstName: 'Robert', lastName: 'Schäfer', email: 'r.schaefer@web.de', phone: '+49 162 9998888', stage: 6, source: 'Messe', tag: 'hot', job: 'Angestellt', income: 5500, capital: 70000, date: '15.03.2026', files: [], score: 0 },
-  { id: 13, firstName: 'Lisa', lastName: 'Koch', email: 'l.koch@gmail.com', phone: '+49 171 2223344', stage: 6, source: 'Empfehlung', tag: 'hot', job: 'Beamter', income: 4300, capital: 90000, date: '14.03.2026', files: [], score: 0 },
-  { id: 14, firstName: 'Stefan', lastName: 'Richter', email: 's.richter@outlook.com', phone: '+49 159 5556677', stage: 7, source: 'Website', tag: 'hot', job: 'Selbstständig', income: 9200, capital: 200000, date: '12.03.2026', files: [], score: 0 },
-  { id: 15, firstName: 'Maria', lastName: 'Lange', email: 'm.lange@gmx.de', phone: '+49 174 8889900', stage: 7, source: 'Empfehlung', tag: 'hot', job: 'Angestellt', income: 5800, capital: 85000, date: '10.03.2026', files: [], score: 0 },
-  { id: 16, firstName: 'David', lastName: 'Krause', email: 'd.krause@yahoo.de', phone: '+49 168 1112233', stage: 8, source: 'Website', tag: 'hot', job: 'Angestellt', income: 6100, capital: 110000, date: '08.03.2026', files: [], score: 0 },
-  { id: 17, firstName: 'Kathrin', lastName: 'Schulze', email: 'k.schulze@web.de', phone: '+49 153 4445566', stage: 9, source: 'Empfehlung', tag: 'hot', job: 'Beamter', income: 4700, capital: 65000, date: '01.03.2026', files: [], score: 0 },
-  { id: 18, firstName: 'Peter', lastName: 'Neumann', email: 'p.neumann@gmail.com', phone: '+49 177 7778899', stage: 9, source: 'Messe', tag: 'hot', job: 'Selbstständig', income: 11000, capital: 250000, date: '25.02.2026', files: [], score: 0 },
-  { id: 19, firstName: 'Sandra', lastName: 'Frank', email: 's.frank@outlook.com', phone: '+49 156 3334455', stage: 9, source: 'Website', tag: 'hot', job: 'Angestellt', income: 5300, capital: 75000, date: '20.02.2026', files: [], score: 0 },
-  { id: 20, firstName: 'Andreas', lastName: 'Berger', email: 'a.berger@gmx.de', phone: '+49 161 6667788', stage: 10, source: 'Empfehlung', tag: 'warm', job: 'Angestellt', income: 4900, capital: 95000, date: '15.02.2026', files: [], score: 0 },
-  { id: 21, firstName: 'Christine', lastName: 'Hartmann', email: 'c.hartmann@yahoo.de', phone: '+49 175 9990011', stage: 10, source: 'Website', tag: 'warm', job: 'Beamter', income: 4400, capital: 50000, date: '10.02.2026', files: [], score: 0 },
-  { id: 22, firstName: 'Felix', lastName: 'Zimmermann', email: 'f.zimmermann@web.de', phone: '+49 169 2223344', stage: 1, source: 'Social Media', tag: 'new', job: 'Angestellt', income: 3900, capital: 20000, date: '30.03.2026', files: [], score: 0 },
-  { id: 23, firstName: 'Sophia', lastName: 'Krüger', email: 's.krueger@gmail.com', phone: '+49 154 5556677', stage: 2, source: 'Kaltakquise', tag: 'cold', job: 'Student', income: 1200, capital: 5000, date: '29.03.2026', files: [], score: 0 },
-  { id: 24, firstName: 'Maximilian', lastName: 'Huber', email: 'm.huber@outlook.com', phone: '+49 179 8889900', stage: 3, source: 'Empfehlung', tag: 'warm', job: 'Selbstständig', income: 5700, capital: 45000, date: '31.03.2026', files: [], score: 0 },
-];
+let leads = [];
 
-let nextId = 25;
+let nextId = 1;
 
 // ==================== ACTIVITY TIMELINE ====================
 
@@ -7136,23 +7123,7 @@ function calcBonitaetErweitert() {
 
 // ==================== FINANZIERUNGSSERVICE ====================
 
-let finanzPartner = [
-  { id:1, firstName:'Sarah', lastName:'Müller', email:'sarah.mueller@finanzbank.de', phone:'+49 172 5551234', website:'https://www.finanzbank.de',
-    firma:'Interhyp AG', seitJahr:2016, volumen:42000000, ranking:5, gebiet:'Bayern, Baden-Württemberg',
-    kundentypen:['angestellt','selbst','beamte','kapital'], notes:'Top-Beraterin, sehr schnelle Bearbeitung. Spezialisiert auf Kapitalanleger mit hohem EK. Gute Konditionen bei Sondertilgung.' },
-  { id:2, firstName:'Christian', lastName:'Lang', email:'c.lang@hypoberater.de', phone:'+49 163 4447788', website:'https://www.hypoberater.de',
-    firma:'Dr. Klein Privatkunden AG', seitJahr:2012, volumen:68000000, ranking:5, gebiet:'NRW, Bundesweit',
-    kundentypen:['angestellt','selbst','beamte','pflege','denkmal','kapital'], notes:'Finanziert auch Pflegeappartements und Denkmal-Immobilien. Sehr erfahren, schnelle Zusagen. Arbeitet mit über 400 Bankpartnern.' },
-  { id:3, firstName:'Jennifer', lastName:'Krause', email:'j.krause@baufi-direkt.de', phone:'+49 151 2229988', website:'https://www.baufi-direkt.de',
-    firma:'Baufi Direkt GmbH', seitJahr:2019, volumen:18000000, ranking:4, gebiet:'Berlin, Hamburg, Sachsen',
-    kundentypen:['angestellt','beamte','kapital'], notes:'Fokus auf Beamten-Finanzierung und Neubau. Sehr freundlich und geduldig bei Erstfinanzierern.' },
-  { id:4, firstName:'Marcus', lastName:'Weber', email:'m.weber@dsl-partner.de', phone:'+49 176 3334455', website:'',
-    firma:'DSL Bank / Partnervermittlung', seitJahr:2008, volumen:120000000, ranking:5, gebiet:'Bundesweit',
-    kundentypen:['angestellt','selbst','beamte','pflege','denkmal','kapital'], notes:'Einer der erfahrensten Partner. Finanziert nahezu alle Objekttypen. Besonders gut bei Selbstständigen mit komplexer Einkommenssituation.' },
-  { id:5, firstName:'Lisa', lastName:'Hoffmann', email:'l.hoffmann@hypo-plus.de', phone:'+49 160 7778899', website:'https://www.hypo-plus.de',
-    firma:'HypoPlus Vermittlung', seitJahr:2020, volumen:9500000, ranking:3, gebiet:'Bayern',
-    kundentypen:['angestellt','kapital'], notes:'Noch relativ neu, aber sehr engagiert. Fokus auf München und Umgebung. Gute Erreichbarkeit.' },
-];
+let finanzPartner = [];
 let fpNextId = 6;
 
 function renderFinanzPartner() {
@@ -7347,132 +7318,44 @@ function addFinanzPartner() {
 
 // ==================== PROJEKTE (Gebäude / Häuser) ====================
 
-let projekte = [
-  { id:1, name:'Residenz am Park', anbieter:'Hofmann Bau GmbH', plz:'80331', stadt:'München', strasse:'Parkstraße 12', beschreibung:'Exklusive Neubauwohnanlage in Toplage am Englischen Garten', dokumente:[], sichtbarkeit: {kaufpreis:true,groesse:true,miete:true,zimmer:true,rendite:true,hausgeld:true,provision:true,etage:true,balkon:true,energieKlasse:true,finanzierung:true,nebenkosten:true,stellplatz:true,denkmal:false,steuer:true} },
-  { id:2, name:'Stadtquartier Mitte', anbieter:'Urban Living AG', plz:'10115', stadt:'Berlin', strasse:'Friedrichstr. 88', beschreibung:'Modernes Wohnquartier im Herzen Berlins mit Mikroapartments', dokumente:[], sichtbarkeit: {kaufpreis:true,groesse:true,miete:true,zimmer:true,rendite:true,hausgeld:true,provision:true,etage:true,balkon:true,energieKlasse:true,finanzierung:true,nebenkosten:true,stellplatz:false,denkmal:false,steuer:true} },
-  { id:3, name:'Altstadtlofts', anbieter:'Denkmal Invest KG', plz:'04109', stadt:'Leipzig', strasse:'Thomaskirchstr. 5', beschreibung:'Denkmalgeschützte Altbausanierung mit Steuervorteilen', dokumente:[], sichtbarkeit: {kaufpreis:true,groesse:true,miete:true,zimmer:true,rendite:true,hausgeld:true,provision:true,etage:true,balkon:true,energieKlasse:true,finanzierung:true,nebenkosten:true,stellplatz:true,denkmal:true,steuer:true} },
-  { id:4, name:'Seeresidenz', anbieter:'Lakeside Bau', plz:'78462', stadt:'Konstanz', strasse:'Seeweg 3', beschreibung:'Premiumwohnanlage mit direktem Seezugang', dokumente:[], sichtbarkeit: {kaufpreis:true,groesse:true,miete:true,zimmer:true,rendite:true,hausgeld:true,provision:true,etage:true,balkon:true,energieKlasse:true,finanzierung:true,nebenkosten:true,stellplatz:true,denkmal:false,steuer:true} },
-  { id:5, name:'Parkblick', anbieter:'Green Living GmbH', plz:'50667', stadt:'Köln', strasse:'Parkgürtel 22', beschreibung:'Nachhaltige Neubauwohnungen in grüner Umgebung', dokumente:[], sichtbarkeit: {kaufpreis:true,groesse:true,miete:true,zimmer:true,rendite:true,hausgeld:true,provision:true,etage:true,balkon:true,energieKlasse:true,finanzierung:true,nebenkosten:true,stellplatz:true,denkmal:false,steuer:true} },
-  { id:6, name:'Hafenquartier', anbieter:'Maritime Wohn AG', plz:'20457', stadt:'Hamburg', strasse:'Hafenstr. 14', beschreibung:'Wohnungen mit Hafenblick in der Speicherstadt-Nähe', dokumente:[], sichtbarkeit: {kaufpreis:true,groesse:true,miete:true,zimmer:true,rendite:true,hausgeld:true,provision:true,etage:true,balkon:true,energieKlasse:true,finanzierung:true,nebenkosten:true,stellplatz:true,denkmal:false,steuer:true} },
-];
+let projekte = [];
 let projektNextId = 7;
 
 // ==================== OBJEKTE / IMMOBILIENPORTAL ====================
 
-let objekte = [
-  { id:1, projektId:1, projekt:'Residenz am Park', anbieter:'Hofmann Bau GmbH', plz:'80331', stadt:'München', strasse:'Parkstraße 12', whgNr:'Whg. 4', preis:285000, groesse:65, miete:750, zimmer:2, bauzustand:'Neubau', klasse:'Eigentumswohnung', status:'frei', provision:3.5, hausgeld:280, hausgeldUmlagefaehig:180, hausgeldNichtUmlagefaehig:100, erhaltungsruecklage:35, grundanteil:25, mea:1.8, energieKlasse:'B', energieTyp:'Bedarfsausweis', energieVerbrauch:68, heizung:'Fernwärme', afa:2, degressiv:false, grunderwerbsteuer:3.5, grundbuch:0.5, notar:1.5, etage:2, balkon:'Balkon', stellplatzPreis:15000, stellplatzMiete:50, kreditHoehe1:228000, kreditZins1:3.8, kreditTilgung1:2, kreditHoehe2:0, kreditZins2:0, kreditTilgung2:0, kfw:'KfW 261', preSale:false, sev:true, mietpool:false, denkmalAnteil:0, fotos:[], dokumente:[], tags:['Top-Lage','Neubau'] },
-  { id:2, projektId:2, projekt:'Stadtquartier Mitte', anbieter:'Urban Living AG', plz:'10115', stadt:'Berlin', strasse:'Friedrichstr. 88', whgNr:'Whg. 21', preis:198000, groesse:42, miete:580, zimmer:1, bauzustand:'Neubau', klasse:'Mikroapartment', status:'frei', provision:4.0, hausgeld:195, hausgeldUmlagefaehig:130, hausgeldNichtUmlagefaehig:65, erhaltungsruecklage:25, grundanteil:20, mea:0.9, energieKlasse:'A', energieTyp:'Bedarfsausweis', energieVerbrauch:45, heizung:'Wärmepumpe', afa:3, degressiv:true, grunderwerbsteuer:6.0, grundbuch:0.5, notar:1.5, etage:5, balkon:'Loggia', stellplatzPreis:0, stellplatzMiete:0, kreditHoehe1:168000, kreditZins1:3.6, kreditTilgung1:2.5, kreditHoehe2:0, kreditZins2:0, kreditTilgung2:0, kfw:'KfW 297', preSale:false, sev:false, mietpool:true, denkmalAnteil:0, fotos:[], dokumente:[], tags:['Kapitalanlage'] },
-  { id:3, projektId:3, projekt:'Altstadtlofts', anbieter:'Denkmal Invest KG', plz:'04109', stadt:'Leipzig', strasse:'Thomaskirchstr. 5', whgNr:'Whg. 8', preis:165000, groesse:55, miete:520, zimmer:2, bauzustand:'Sanierung', klasse:'Eigentumswohnung', status:'reserviert', provision:3.8, hausgeld:240, hausgeldUmlagefaehig:160, hausgeldNichtUmlagefaehig:80, erhaltungsruecklage:30, grundanteil:15, mea:1.5, energieKlasse:'C', energieTyp:'Verbrauchsausweis', energieVerbrauch:95, heizung:'Gas', afa:3.5, degressiv:false, grunderwerbsteuer:3.5, grundbuch:0.5, notar:1.5, etage:3, balkon:'—', stellplatzPreis:8000, stellplatzMiete:40, kreditHoehe1:140000, kreditZins1:3.9, kreditTilgung1:2, kreditHoehe2:0, kreditZins2:0, kreditTilgung2:0, kfw:'—', preSale:false, sev:true, mietpool:false, denkmalAnteil:65, fotos:[], dokumente:[], tags:['Denkmal','Steuer-Highlight'] },
-  { id:4, projektId:4, projekt:'Seeresidenz', anbieter:'Lakeside Bau', plz:'78462', stadt:'Konstanz', strasse:'Seeweg 3', whgNr:'Whg. 15', preis:420000, groesse:88, miete:1200, zimmer:3, bauzustand:'Neubau', klasse:'Eigentumswohnung', status:'frei', provision:3.2, hausgeld:380, hausgeldUmlagefaehig:250, hausgeldNichtUmlagefaehig:130, erhaltungsruecklage:45, grundanteil:30, mea:2.8, energieKlasse:'A+', energieTyp:'Bedarfsausweis', energieVerbrauch:32, heizung:'Wärmepumpe', afa:2, degressiv:false, grunderwerbsteuer:5.0, grundbuch:0.5, notar:1.5, etage:1, balkon:'Terrasse + Garten', stellplatzPreis:22000, stellplatzMiete:70, kreditHoehe1:336000, kreditZins1:3.5, kreditTilgung1:2, kreditHoehe2:0, kreditZins2:0, kreditTilgung2:0, kfw:'KfW 261', preSale:true, sev:true, mietpool:false, denkmalAnteil:0, fotos:[], dokumente:[], tags:['Premium','Seelage'] },
-  { id:5, projektId:5, projekt:'Parkblick', anbieter:'Green Living GmbH', plz:'50667', stadt:'Köln', strasse:'Parkgürtel 22', whgNr:'Whg. 7', preis:235000, groesse:58, miete:680, zimmer:2, bauzustand:'Neubau', klasse:'Eigentumswohnung', status:'frei', provision:3.6, hausgeld:260, hausgeldUmlagefaehig:170, hausgeldNichtUmlagefaehig:90, erhaltungsruecklage:32, grundanteil:22, mea:1.6, energieKlasse:'B', energieTyp:'Bedarfsausweis', energieVerbrauch:62, heizung:'Fernwärme', afa:2, degressiv:false, grunderwerbsteuer:6.5, grundbuch:0.5, notar:1.5, etage:4, balkon:'Balkon', stellplatzPreis:18000, stellplatzMiete:55, kreditHoehe1:200000, kreditZins1:3.7, kreditTilgung1:2, kreditHoehe2:0, kreditZins2:0, kreditTilgung2:0, kfw:'—', preSale:false, sev:false, mietpool:false, denkmalAnteil:0, fotos:[], dokumente:[], tags:['Grünlage'] },
-  { id:6, projektId:6, projekt:'Hafenquartier', anbieter:'Maritime Wohn AG', plz:'20457', stadt:'Hamburg', strasse:'Hafenstr. 14', whgNr:'Whg. 32', preis:310000, groesse:72, miete:920, zimmer:3, bauzustand:'Bestand', klasse:'Eigentumswohnung', status:'verkauft', provision:3.0, hausgeld:320, hausgeldUmlagefaehig:210, hausgeldNichtUmlagefaehig:110, erhaltungsruecklage:40, grundanteil:28, mea:2.2, energieKlasse:'D', energieTyp:'Verbrauchsausweis', energieVerbrauch:120, heizung:'Gas', afa:2, degressiv:false, grunderwerbsteuer:4.5, grundbuch:0.5, notar:1.5, etage:6, balkon:'Balkon', stellplatzPreis:20000, stellplatzMiete:60, kreditHoehe1:260000, kreditZins1:4.0, kreditTilgung1:1.5, kreditHoehe2:0, kreditZins2:0, kreditTilgung2:0, kfw:'—', preSale:false, sev:true, mietpool:true, denkmalAnteil:0, fotos:[], dokumente:[], tags:['Hafenblick'] },
-];
+let objekte = [];
 let objNextId = 7;
 
 // ==================== EMAIL-VORLAGEN & TEXTBAUSTEINE ====================
 
-var emailVorlagen = [
-  { id:1, name:'Erstkontakt', betreff:'Herzlich willkommen — Ihre Immobilienberatung', body:'Sehr geehrte/r {Vorname} {Nachname},\n\nvielen Dank für Ihr Interesse an einer Kapitalanlage-Immobilie. Mein Name ist {Berater} und ich freue mich, Sie persönlich beraten zu dürfen.\n\nGerne möchte ich Ihnen unsere aktuellen Angebote vorstellen und einen unverbindlichen Beratungstermin mit Ihnen vereinbaren.\n\nMit freundlichen Grüßen\n{Berater}', custom:false },
-  { id:2, name:'Expose-Versand', betreff:'Ihr Expose: {Objekt}', body:'Sehr geehrte/r {Vorname} {Nachname},\n\nanbei erhalten Sie das gewünschte Expose für das Objekt {Objekt}.\n\nBitte nehmen Sie sich Zeit, die Unterlagen in Ruhe durchzugehen. Bei Fragen stehe ich Ihnen jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\n{Berater}', custom:false },
-  { id:3, name:'Terminbestätigung', betreff:'Terminbestätigung — {Termin}', body:'Sehr geehrte/r {Vorname} {Nachname},\n\nhiermit bestätige ich unseren gemeinsamen Termin am {Termin}.\n\nBitte bringen Sie, falls vorhanden, aktuelle Einkommensnachweise und eine Selbstauskunft mit.\n\nIch freue mich auf unser Gespräch.\n\nMit freundlichen Grüßen\n{Berater}', custom:false },
-  { id:4, name:'Follow-Up', betreff:'Nachfrage zu Ihrem Immobilienprojekt', body:'Sehr geehrte/r {Vorname} {Nachname},\n\nich hoffe, es geht Ihnen gut. Vor einiger Zeit hatten wir über eine Kapitalanlage-Immobilie gesprochen.\n\nGibt es Neuigkeiten auf Ihrer Seite? Haben sich Ihre Rahmenbedingungen geändert? Gerne stehe ich für ein aktualisiertes Beratungsgespräch zur Verfügung.\n\nMit freundlichen Grüßen\n{Berater}', custom:false },
-  { id:5, name:'Notar-Einladung', betreff:'Einladung zum Notartermin — {Objekt}', body:'Sehr geehrte/r {Vorname} {Nachname},\n\nwir freuen uns, Sie zum Notartermin für das Objekt {Objekt} einladen zu dürfen.\n\nTermin: {Termin}\n\nBitte bringen Sie Ihren Personalausweis sowie die Finanzierungszusage Ihrer Bank mit.\n\nBei Fragen stehe ich Ihnen jederzeit zur Verfügung.\n\nMit freundlichen Grüßen\n{Berater}', custom:false }
-];
-var emailVorlagenNextId = 6;
+var emailVorlagen = [];
+var emailVorlagenNextId = 1;
 
-var textbausteine = [
-  { id:1, name:'Grußformel', text:'Mit freundlichen Grüßen\nIhr VertriebsImmo Team\nTel: +49 89 12345678\nE-Mail: info@vertriebsimmo.de' },
-  { id:2, name:'Haftungsausschluss', text:'Die in dieser E-Mail enthaltenen Informationen dienen ausschließlich zu Informationszwecken und stellen keine Rechts-, Steuer- oder Anlageberatung dar. Alle Angaben ohne Gewähr.' },
-  { id:3, name:'DSGVO', text:'Ihre Daten werden gemäß DSGVO verarbeitet. Sie können jederzeit Auskunft über Ihre gespeicherten Daten verlangen oder deren Löschung beantragen. Datenschutzbeauftragter: datenschutz@vertriebsimmo.de' }
-];
+var textbausteine = [];
 
 // ==================== AUFGABEN / TASKS ====================
 
-var aufgaben = [
-  { id:1, title:'Anna Schmidt anrufen — Erstgespräch vereinbaren', dueDate:'2026-04-04', priority:'hoch', leadId:1, completed:false },
-  { id:2, title:'Expose für Michael Braun vorbereiten', dueDate:'2026-04-04', priority:'mittel', leadId:2, completed:false },
-  { id:3, title:'Finanzierungsunterlagen von Robert Schäfer prüfen', dueDate:'2026-04-03', priority:'hoch', leadId:12, completed:false },
-  { id:4, title:'Notartermin für David Krause koordinieren', dueDate:'2026-04-05', priority:'hoch', leadId:16, completed:false },
-  { id:5, title:'Follow-Up Julia Wagner — nach 2 Wochen ohne Kontakt', dueDate:'2026-04-02', priority:'mittel', leadId:3, completed:false },
-  { id:6, title:'Besichtigungstermin Sarah Hoffmann bestätigen', dueDate:'2026-04-06', priority:'niedrig', leadId:5, completed:true }
-];
-var aufgabenNextId = 7;
+var aufgaben = [];
+var aufgabenNextId = 1;
 var currentTaskFilter = 'alle';
 
 // ==================== FOLLOW-UP RULES ====================
 
-var followUpRules = [
-  { stageId:1, days:3, enabled:true },
-  { stageId:2, days:2, enabled:true },
-  { stageId:3, days:5, enabled:true },
-  { stageId:4, days:4, enabled:true },
-  { stageId:5, days:3, enabled:true },
-  { stageId:6, days:7, enabled:true },
-  { stageId:7, days:5, enabled:true },
-  { stageId:8, days:3, enabled:true }
-];
+var followUpRules = [];
 
 // ==================== SCORING RULES ====================
 
-var scoringRules = [
-  { id:1, field:'capital', operator:'>=', value:100000, points:30 },
-  { id:2, field:'capital', operator:'>=', value:50000, points:20 },
-  { id:3, field:'capital', operator:'>=', value:20000, points:10 },
-  { id:4, field:'income', operator:'>=', value:7000, points:30 },
-  { id:5, field:'income', operator:'>=', value:5000, points:20 },
-  { id:6, field:'income', operator:'>=', value:3000, points:10 },
-  { id:7, field:'tag', operator:'==', value:'hot', points:20 },
-  { id:8, field:'tag', operator:'==', value:'warm', points:10 },
-  { id:9, field:'tag', operator:'==', value:'new', points:5 },
-  { id:10, field:'source', operator:'==', value:'Empfehlung', points:10 },
-  { id:11, field:'inactiveDays', operator:'>=', value:14, points:-15 },
-  { id:12, field:'stage', operator:'>=', value:6, points:10 }
-];
-var scoringRulesNextId = 13;
+var scoringRules = [];
+var scoringRulesNextId = 1;
 
 // ==================== RESERVIERUNGEN ====================
 
-let reservierungen = [
-  { id: 1, leadId: 5, objektId: 1, projektId: 1, finanzierer: { type: 'intern', id: 1, firstName: 'Sarah', lastName: 'Müller', email: 'sarah.mueller@finanzbank.de', phone: '+49 172 5551234' }, status: 'reserviert', datum: '28.03.2026' },
-  { id: 2, leadId: 6, objektId: 2, projektId: 2, finanzierer: { type: 'extern', firstName: 'Thomas', lastName: 'König', email: 'thomas.koenig@privatbank.de', phone: '+49 160 1234567' }, status: 'finanzierung', datum: '27.03.2026' },
-  { id: 3, leadId: 12, objektId: 4, projektId: 4, finanzierer: { type: 'intern', id: 2, firstName: 'Christian', lastName: 'Lang', email: 'c.lang@hypoberater.de', phone: '+49 163 4447788' }, status: 'angefragt', datum: '25.03.2026' },
-];
+let reservierungen = [];
 let resNextId = 4;
 let currentReservierungenFilter = 'all';
 
 // ==================== NEWS / NEUIGKEITEN ====================
-let newsArticles = [
-  {
-    id: 1, title: 'EZB senkt Leitzins auf 2,25 % — Auswirkungen auf Immobilienfinanzierungen',
-    excerpt: 'Die Europäische Zentralbank hat den Leitzins erneut gesenkt. Das hat direkte Auswirkungen auf Baufinanzierungen und die Nachfrage nach Kapitalanlagen.',
-    content: 'Die Europäische Zentralbank (EZB) hat den Leitzins im März 2026 auf 2,25 % gesenkt. Experten erwarten, dass die Bauzinsen in den kommenden Wochen weiter sinken könnten. Für Kapitalanleger bedeutet das: günstigere Finanzierungskonditionen und höhere Renditen bei vermieteten Immobilien.\n\nWir empfehlen, bestehende Kunden proaktiv auf die neuen Finanzierungsmöglichkeiten hinzuweisen und Nachfinanzierungen zu prüfen.',
-    category: 'bank', date: '28.03.2026', author: 'VertriebsImmo Team', important: true, pinned: true, unread: true
-  },
-  {
-    id: 2, title: 'Neues Projekt "Parkresidenz am See" ab sofort im Vertrieb',
-    excerpt: 'Ab April ist das neue Wohnprojekt in Leipzig-Connewitz verfügbar. 48 Wohneinheiten mit attraktiver KfW-Förderung.',
-    content: 'Wir freuen uns, das neue Projekt "Parkresidenz am See" in Leipzig-Connewitz offiziell in den Vertrieb aufzunehmen. Das Objekt umfasst 48 Wohneinheiten von 35–95 m², alle mit Balkon oder Terrasse.\n\nBesonderheiten:\n- KfW-55-Standard\n- Provisionssatz: 3,57 % inkl. MwSt.\n- Mietpool-Option verfügbar\n- Übergabe: Q3 2027\n\nObjektunterlagen und Exposés findet ihr ab sofort unter Dateien & Vorlagen.',
-    category: 'intern', date: '25.03.2026', author: 'Geschäftsleitung', important: true, pinned: false, unread: true
-  },
-  {
-    id: 3, title: 'Grunderwerbsteuer in NRW steigt auf 7,0 % ab Juli 2026',
-    excerpt: 'Nordrhein-Westfalen erhöht die Grunderwerbsteuer. Kunden mit NRW-Objekten sollten zeitnah den Notartermin anstreben.',
-    content: 'Die Landesregierung NRW hat beschlossen, die Grunderwerbsteuer ab dem 1. Juli 2026 von 6,5 % auf 7,0 % zu erhöhen. Das bedeutet bei einem Kaufpreis von 200.000 € Mehrkosten von 1.000 € für den Käufer.\n\nHandlungsempfehlung: Kunden mit Objekten in NRW sollten vor dem 1. Juli den Notartermin abschließen. Bitte informiert eure Kunden proaktiv!',
-    category: 'immobilien', date: '22.03.2026', author: 'VertriebsImmo Team', important: false, pinned: false, unread: true
-  },
-  {
-    id: 4, title: 'Inflation sinkt auf 1,8 % — Wirtschaftswachstum zieht an',
-    excerpt: 'Die Inflationsrate in Deutschland ist im Februar 2026 auf 1,8 % gesunken. Das BIP-Wachstum wird für 2026 auf 1,4 % geschätzt.',
-    content: 'Die Inflationsrate ist weiter gesunken und liegt bei 1,8 %. Das Wirtschaftswachstum stabilisiert sich. Für den Immobilienmarkt sind das positive Signale: Steigende Kaufkraft und niedrigere Zinsen kurbeln die Nachfrage an.\n\nDie Mietentwicklung bleibt in Ballungsräumen stabil bis leicht steigend, was die Attraktivität von Kapitalanlagen stützt.',
-    category: 'wirtschaft', date: '20.03.2026', author: 'VertriebsImmo Team', important: false, pinned: false, unread: false
-  },
-  {
-    id: 5, title: 'KfW-Förderung 2026: Neue Konditionen und Programme',
-    excerpt: 'Die KfW hat ihre Förderprogramme für 2026 aktualisiert. Wichtige Änderungen bei Tilgungszuschüssen und Zinssätzen.',
-    content: 'Die KfW hat für 2026 folgende Änderungen angekündigt:\n\n- KfW 297/298 (Klimafreundlicher Neubau): Zinssatz ab 1,1 % effektiv\n- Tilgungszuschuss für EH40-Standard: 12,5 %\n- Maximale Fördersumme: 150.000 € pro Wohneinheit\n\nBitte nutzt die aktualisierten Konditionen in euren Beratungsgesprächen und aktualisiert die Finanzierungsberechnungen entsprechend.',
-    category: 'bank', date: '18.03.2026', author: 'Finanzabteilung', important: false, pinned: false, unread: false
-  }
-];
+let newsArticles = [];
 let newsNextId = 6;
 let currentNewsFilter = 'all';
 let pendingFinanzLead = null;
@@ -11941,30 +11824,13 @@ function renderBerichte() {
 // ===== DATEIEN & VORLAGEN =====
 // =====================================================
 
-let dateiNextId = 20;
-let folderNextId = 10;
+let dateiNextId = 1;
+let folderNextId = 1;
 let currentFolderId = null; // null = Root
 
-let dateiFolders = [
-  { id: 1, name: 'Vorlagen', color: '#c9a84c', parentId: null, created: '01.01.2026' },
-  { id: 2, name: 'Formulare', color: '#3b82f6', parentId: null, created: '01.01.2026' },
-  { id: 3, name: 'Marketing', color: '#10b981', parentId: null, created: '15.01.2026' },
-  { id: 4, name: 'Intern', color: '#6b7280', parentId: null, created: '01.02.2026' },
-  { id: 5, name: 'Notarverträge', color: '#8b5cf6', parentId: 1, created: '10.02.2026' },
-];
+let dateiFolders = [];
 
-let dateiFiles = [
-  { id: 1, name: 'Kaufvertrag_Vorlage.pdf', folderId: 1, size: '245 KB', date: '15.03.2026', type: 'pdf' },
-  { id: 2, name: 'Selbstauskunft_Formular.pdf', folderId: 2, size: '180 KB', date: '10.03.2026', type: 'pdf' },
-  { id: 3, name: 'Reservierungsvereinbarung.pdf', folderId: 2, size: '210 KB', date: '01.03.2026', type: 'pdf' },
-  { id: 4, name: 'MABV_Zahlungsplan.pdf', folderId: 1, size: '312 KB', date: '08.03.2026', type: 'pdf' },
-  { id: 5, name: 'Finanzierungsantrag.pdf', folderId: 2, size: '420 KB', date: '01.03.2026', type: 'pdf' },
-  { id: 6, name: 'Expose_Vorlage.png', folderId: 3, size: '1.2 MB', date: '25.02.2026', type: 'image' },
-  { id: 7, name: 'Provisionsvereinbarung.pdf', folderId: 1, size: '195 KB', date: '20.02.2026', type: 'pdf' },
-  { id: 8, name: 'Social_Media_Banner.jpg', folderId: 3, size: '890 KB', date: '18.02.2026', type: 'image' },
-  { id: 9, name: 'Mitarbeiter_Handbuch.pdf', folderId: 4, size: '1.5 MB', date: '05.02.2026', type: 'pdf' },
-  { id: 10, name: 'Grundbuch_Muster.pdf', folderId: 5, size: '340 KB', date: '12.03.2026', type: 'pdf' },
-];
+let dateiFiles = [];
 
 let pendingUploadFiles = [];
 let selectedFolderColor = '#c9a84c';
@@ -12296,19 +12162,8 @@ let calCurrentDate = new Date(); // Referenzdatum für Navigation
 let calProviders = { calendly: false, google: false, outlook: false };
 
 // Demo-Termine
-let calEvents = [
-  { id: 1, type: 'besichtigung', title: 'Besichtigung Residenz am Park', date: getTodayStr(), start: '10:00', end: '11:00', kunde: 'Hr. Schmidt', objekt: 'Residenz am Park', ort: 'Parkstraße 12, 80331 München', notes: 'Erstbesichtigung, Kunde hat hohes Budget', source: 'crm' },
-  { id: 2, type: 'beratung', title: 'Beratung Finanzierung', date: getTodayStr(), start: '14:00', end: '15:00', kunde: 'Fr. Weber', objekt: 'Stadtquartier Mitte', ort: 'Online — Zoom', notes: 'Finanzierungskonzept besprechen', source: 'crm' },
-  { id: 3, type: 'intern', title: 'Team-Meeting Vertrieb', date: getTodayStr(), start: '16:30', end: '17:00', kunde: '', objekt: '', ort: 'Büro', notes: 'Wöchentliches Vertriebsmeeting', source: 'crm' },
-  { id: 4, type: 'notar', title: 'Notartermin Altstadtlofts', date: getRelDateStr(1), start: '09:00', end: '10:30', kunde: 'Hr. u. Fr. Müller', objekt: 'Altstadtlofts', ort: 'Notar Kanzlei Dr. Braun, Leipzig', notes: 'Kaufvertrag, alle Unterlagen mitbringen', source: 'crm' },
-  { id: 5, type: 'besichtigung', title: 'Besichtigung Seeresidenz — Fam. Klein', date: getRelDateStr(2), start: '11:00', end: '12:00', kunde: 'Fam. Klein', objekt: 'Seeresidenz', ort: 'Seeweg 3, 78462 Konstanz', notes: '', source: 'crm' },
-  { id: 6, type: 'calendly', title: 'Calendly: Erstgespräch M. Hoffmann', date: getRelDateStr(1), start: '13:00', end: '13:30', kunde: 'M. Hoffmann', objekt: '', ort: 'Google Meet', notes: 'Automatisch via Calendly gebucht', source: 'calendly' },
-  { id: 7, type: 'beratung', title: 'Steuerberatung — Kapitalanlage', date: getRelDateStr(3), start: '15:00', end: '16:00', kunde: 'Hr. Yilmaz', objekt: 'Parkblick', ort: 'Büro', notes: 'Steuermodell für Parkblick durchrechnen', source: 'crm' },
-  { id: 8, type: 'besichtigung', title: 'Gruppenbesichtigung Hafenquartier', date: getRelDateStr(4), start: '10:00', end: '12:00', kunde: '5 Interessenten', objekt: 'Hafenquartier', ort: 'Hafenstr. 14, 20457 Hamburg', notes: '', source: 'crm' },
-  { id: 9, type: 'calendly', title: 'Calendly: Beratung Fr. Engel', date: getRelDateStr(-1), start: '11:00', end: '11:30', kunde: 'Fr. Engel', objekt: '', ort: 'Zoom', notes: 'Via Calendly gebucht', source: 'calendly' },
-  { id: 10, type: 'beratung', title: 'Nachbesprechung Finanzierung', date: getRelDateStr(-2), start: '14:00', end: '15:00', kunde: 'Hr. Peters', objekt: 'Stadtquartier Mitte', ort: 'Online', notes: '', source: 'google' }
-];
-let calNextId = 11;
+let calEvents = [];
+let calNextId = 1;
 
 function getTodayStr() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
 function getRelDateStr(offset) { const d = new Date(); d.setDate(d.getDate() + offset); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
@@ -12736,51 +12591,16 @@ function markAllNotifsRead() {
 
 // === Generate demo notifications on startup ===
 function generateDemoNotifications() {
-  const now = new Date();
-  // Some past notifications to make it look realistic
-  const demos = [
-    { type: 'lead', text: '<strong>Felix Zimmermann</strong> wurde als neuer Lead hinzugefügt', link: 'pipeline', mins: 12 },
-    { type: 'kalender', text: 'Neuer Termin: <strong>Besichtigung</strong> mit Anna Schmidt um 14:00 Uhr', link: 'kalender', mins: 25 },
-    { type: 'reservierung', text: 'Neue Reservierung: <strong>Robert Schäfer</strong> für Residenz am Park — Whg. 3.2', link: 'reservierungen', mins: 48 },
-    { type: 'objekt', text: 'Neues Objekt: <strong>Stadtgarten Residenz — Whg. 5.1</strong> wurde angelegt', link: 'projekte', mins: 95 },
-    { type: 'finanzierung', text: '<strong>Lisa Koch</strong> wurde in die Finanzierung verschoben', link: 'pipeline', mins: 130 },
-    { type: 'news', text: 'Neuer Beitrag: <strong>Zinsentwicklung Q2 2026</strong>', link: 'news', mins: 200 },
-    { type: 'partner', text: 'Neuer Finanzierungspartner: <strong>Sarah Müller</strong> (Interhyp AG)', link: 'finanzierung', mins: 320 },
-    { type: 'deal', text: '🎉 <strong>Kathrin Schulze</strong> — Deal abgeschlossen!', link: 'pipeline', mins: 480 },
-    { type: 'kalender', text: 'Termin morgen: <strong>Beratungsgespräch</strong> mit Markus Becker um 10:00 Uhr', link: 'kalender', mins: 600 },
-    { type: 'reservierung', text: 'Reservierung aktualisiert: <strong>Stefan Richter</strong> → Notarvorbereitung', link: 'reservierungen', mins: 900 }
-  ];
-
-  demos.forEach(d => {
-    const time = new Date(now.getTime() - d.mins * 60000);
-    crmNotifications.push({
-      id: crmNotifNextId++,
-      type: d.type,
-      text: d.text,
-      time: time,
-      read: d.mins > 200,  // Older ones are already read
-      link: d.link
-    });
-  });
-
+  // Demo notifications disabled — real notifications come from user activity.
   updateNotifBadge();
   renderNotifDropdown();
 }
 
 // ==================== CHATS MODULE ====================
 
-let emailData = [
-  { id:1, from:'Thomas Weber', email:'t.weber@immofin.de', subject:'Finanzierungsangebot für Kunde Müller', preview:'Anbei das aktuelle Finanzierungsangebot für Herrn Müller. Die Konditionen sind wie besprochen...', body:'Hallo,\n\nanbei das aktuelle Finanzierungsangebot für Herrn Müller.\n\nDie Konditionen sind wie besprochen:\n- Darlehenssumme: 285.000 €\n- Zinssatz: 3,85% p.a.\n- Tilgung: 2% im ersten Jahr\n- Zinsbindung: 15 Jahre\n\nBitte lassen Sie mich wissen, ob der Kunde damit einverstanden ist.\n\nMit freundlichen Grüßen\nThomas Weber\nImmoFinanz GmbH', date:'04.04.2026', time:'09:32', unread:true },
-  { id:2, from:'Sabine Klein', email:'s.klein@notar-klein.de', subject:'Notartermin am 15.04. bestätigt', preview:'Der Notartermin für das Objekt Parkresidenz München, Einheit 12B wurde bestätigt...', body:'Sehr geehrter Herr Smolinskyy,\n\nhiermit bestätige ich den Notartermin:\n\nDatum: 15.04.2026, 14:00 Uhr\nObjekt: Parkresidenz München, Einheit 12B\nKäufer: Herr & Frau Becker\n\nBitte bringen Sie folgende Unterlagen mit:\n- Personalausweis\n- Finanzierungsbestätigung\n- Reservierungsvereinbarung\n\nMit freundlichen Grüßen\nSabine Klein\nNotarin', date:'03.04.2026', time:'16:45', unread:true },
-  { id:3, from:'Markus Braun', email:'m.braun@kunde.de', subject:'Frage zur Renditeberechnung', preview:'Ich habe mir die Renditeberechnung angesehen und hätte noch eine Frage zur Abschreibung...', body:'Hallo Herr Smolinskyy,\n\nich habe mir die Renditeberechnung für die Wohnung in der Parkresidenz München angesehen.\n\nKönnten Sie mir bitte erklären, wie genau die degressive Abschreibung berechnet wird? Und welchen Einfluss hat der Denkmalanteil auf die Steuerersparnis in den ersten Jahren?\n\nVielen Dank im Voraus!\n\nMarkus Braun', date:'03.04.2026', time:'11:20', unread:false },
-  { id:4, from:'Lisa Hoffmann', email:'l.hoffmann@vertrieb.de', subject:'Neue Objekte verfügbar - Projekt Elbresidenz', preview:'Ab sofort sind 12 neue Einheiten im Projekt Elbresidenz Hamburg verfügbar...', body:'Hallo zusammen,\n\nab sofort sind 12 neue Einheiten im Projekt Elbresidenz Hamburg verfügbar.\n\nEckdaten:\n- Kaufpreise: 195.000 € - 385.000 €\n- Größen: 28 m² - 78 m²\n- Bruttorendite: 4,2% - 5,1%\n- Bauzustand: Neubau (Fertigstellung Q3/2027)\n\nDie Objekte sind ab sofort im Portal sichtbar.\n\nViele Grüße\nLisa Hoffmann', date:'02.04.2026', time:'08:15', unread:false },
-  { id:5, from:'Andreas Schmidt', email:'a.schmidt@bank.de', subject:'SCHUFA-Ergebnis für Kundin Meier', preview:'Das SCHUFA-Ergebnis für Frau Meier liegt vor. Score: 97,3% - sehr gute Bonität...', body:'Sehr geehrter Herr Smolinskyy,\n\ndas SCHUFA-Ergebnis für Ihre Kundin Frau Meier liegt vor:\n\n- SCHUFA-Score: 97,3%\n- Bewertung: Sehr gute Bonität\n- Keine negativen Einträge\n\nDie Finanzierung kann damit wie besprochen eingeleitet werden.\n\nFreundliche Grüße\nAndreas Schmidt\nFinanzierungsberater', date:'01.04.2026', time:'14:50', unread:false }
-];
+let emailData = [];
 
-let emailAccounts = [
-  { id:1, email:'admin@vertriebsimmo.de', imap:'imap.vertriebsimmo.de', smtp:'smtp.vertriebsimmo.de', connected:true },
-  { id:2, email:'oleh@gmail.com', imap:'imap.gmail.com', smtp:'smtp.gmail.com', connected:true }
-];
+let emailAccounts = [];
 
 let selectedEmail = null;
 
