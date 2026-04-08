@@ -7385,17 +7385,13 @@ function processFiles(fileArray) {
   if (!currentDetailLeadId) return;
   const lead = leads.find(l => l.id === currentDetailLeadId);
   if (!lead) return;
+  if (!lead.files) lead.files = [];
 
-  const allowed = ['application/pdf', 'image/png'];
-  const maxSize = 10 * 1024 * 1024; // 10 MB
+  const maxSize = 25 * 1024 * 1024; // 25 MB
 
   fileArray.forEach(file => {
-    if (!allowed.includes(file.type)) {
-      showNotification('Nur PDF und PNG erlaubt: ' + file.name, 'info');
-      return;
-    }
     if (file.size > maxSize) {
-      showNotification(t('Datei zu groß (max 10 MB): ','File too large (max 10 MB): ') + file.name, 'info');
+      showNotification(t('Datei zu groß (max 25 MB): ','File too large (max 25 MB): ') + file.name, 'info');
       return;
     }
 
@@ -7407,10 +7403,15 @@ function processFiles(fileArray) {
         size: file.size,
         type: file.type,
         data: e.target.result,
-        uploadDate: new Date().toLocaleDateString('de-DE')
+        uploadDate: new Date().toLocaleDateString('de-DE'),
+        saved: true
       });
       renderFileList();
-      showNotification(file.name + ' hochgeladen', 'success');
+      crmDataChanged(); // <-- THE FIX: persist to crm_data
+      showNotification(file.name + ' gespeichert', 'success');
+    };
+    reader.onerror = function() {
+      showNotification('Fehler beim Lesen: ' + file.name, 'warning');
     };
     reader.readAsDataURL(file);
   });
@@ -7433,10 +7434,10 @@ function renderFileList() {
       : (f.size / 1048576).toFixed(1) + ' MB';
 
     return `
-      <div class="file-item">
-        <div class="file-icon ${isPdf ? 'pdf' : 'png'}">${isPdf ? '📕' : '🖼️'}</div>
+      <div class="file-item" style="border-left:3px solid #10b981">
+        <div class="file-icon ${isPdf ? 'pdf' : 'png'}">${isPdf ? '📕' : '📄'}</div>
         <div class="file-info">
-          <div class="file-name">${f.name}</div>
+          <div class="file-name">${f.name} <span style="background:#10b981;color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;margin-left:6px">✓ Gespeichert</span></div>
           <div class="file-meta">${sizeStr} · ${f.uploadDate}</div>
         </div>
         <div class="file-actions">
@@ -7465,6 +7466,7 @@ function removeFile(fileId) {
   const lead = leads.find(l => l.id === currentDetailLeadId);
   lead.files = lead.files.filter(f => String(f.id) !== String(fileId));
   renderFileList();
+  crmDataChanged();
   showNotification('Datei entfernt', 'info');
 }
 
