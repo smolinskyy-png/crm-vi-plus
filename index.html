@@ -2336,8 +2336,8 @@
           <span class="badge" id="kalenderBadge" style="background:var(--gold)">3</span>
         </div>
         <div class="nav-item" onclick="showPage('chats', this)">
-          <span class="icon">💬</span>
-          <span>Chats</span>
+          <span class="icon">✉️</span>
+          <span>E-Mail</span>
           <span class="badge" id="chatsBadge" style="background:var(--gold)">2</span>
         </div>
         <div class="nav-item" onclick="showPage('aufgaben', this)">
@@ -6334,7 +6334,7 @@ function showPage(pageId, navItem) {
   try { localStorage.setItem('crm_last_page', pageId); } catch (_) {}
 
   const titles = {
-    news: t('Neuigkeiten','News'), dashboard: 'Dashboard', pipeline: 'Pipeline', kalender: t('Kalender','Calendar'), chats: 'Chats', bonitaet: t('Bonitätsrechner','Credit Calculator'),
+    news: t('Neuigkeiten','News'), dashboard: 'Dashboard', pipeline: 'Pipeline', kalender: t('Kalender','Calendar'), chats: 'E-Mail', bonitaet: t('Bonitätsrechner','Credit Calculator'),
     finanzierung: t('Finanzierungsservice','Financing Service'), provisionen: t('Provisionen','Commissions'), selbstauskunft: t('Selbstauskunft','Self-Disclosure'), aftersales: 'After Sales', projekte: t('Immobilienportal — Projekte','Real Estate Portal — Projects'), standardwerte: t('Vermögensschere — Objekt-Kalkulator','Wealth Gap — Property Calculator'),
     reservierungen: t('Finanzierungs-Anfragen','Financing Requests'), wissen: t('Wissensdatenbank','Knowledge Base'), videokurse: t('Videokurse','Video Courses'), dateien: t('Dateien & Vorlagen','Files & Templates'),
     berichte: t('Berichte & Auswertungen','Reports & Analytics'), benutzer: t('Benutzerverwaltung','User Management'), einstellungen: t('Einstellungen','Settings'),
