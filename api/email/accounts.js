@@ -31,7 +31,7 @@ module.exports = async (req, res) => {
       const body = await readJson(req);
       const {
         label, from_name, email, imap_host, imap_port, imap_secure,
-        smtp_host, smtp_port, smtp_secure, username, password
+        smtp_host, smtp_port, smtp_secure, username, password, signature
       } = body;
       if (!label || !email || !imap_host || !smtp_host || !username || !password) {
         return json(res, 400, { error: 'Pflichtfelder fehlen' });
@@ -49,6 +49,7 @@ module.exports = async (req, res) => {
         smtp_secure: !!smtp_secure,
         username,
         password_encrypted: encrypt(password),
+        signature: signature || null,
         status: 'active'
       };
       const { data, error } = await sb.from('email_accounts').insert(row).select('*').single();
@@ -61,7 +62,7 @@ module.exports = async (req, res) => {
       const id = url.searchParams.get('id');
       if (!id) return json(res, 400, { error: 'id required' });
       const body = await readJson(req);
-      const allowed = ['label','from_name','email','imap_host','imap_port','imap_secure','smtp_host','smtp_port','smtp_secure','username'];
+      const allowed = ['label','from_name','email','imap_host','imap_port','imap_secure','smtp_host','smtp_port','smtp_secure','username','signature'];
       const patch = {};
       for (const k of allowed) {
         if (body[k] !== undefined) patch[k] = body[k];

@@ -3461,6 +3461,11 @@
                   <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="newEmailImapSecure" checked> IMAP SSL/TLS</label>
                   <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="newEmailSmtpSecure"> SMTP SSL (sonst STARTTLS)</label>
                 </div>
+                <div class="form-group" style="margin-bottom:12px">
+                  <label style="font-size:12px">Signatur (optional)</label>
+                  <textarea id="newEmailSignature" rows="4" placeholder="Mit freundlichen Grüßen&#10;Max Mustermann&#10;Vertriebsimmo GmbH&#10;max@vertriebsimmo.de · +49 ..." style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
+                  <div style="font-size:11px;color:var(--text-light);margin-top:4px">Wird beim Schreiben einer neuen E-Mail automatisch angefügt.</div>
+                </div>
                 <div id="newEmailTestResult" style="margin-bottom:10px;font-size:12px"></div>
                 <div style="display:flex;gap:8px">
                   <button class="btn btn-outline btn-sm" onclick="testEmailAccount()" style="flex:1">🔌 Verbindung testen</button>
@@ -14265,7 +14270,9 @@ function openComposeEmail() {
   document.getElementById('emailList').style.display = 'none';
   const compose = document.getElementById('emailComposeView');
   compose.style.display = 'block';
-  const accountOpts = (window._emailAccountsCache || []).map(a => `<option value="${a.id}">${escHtml(a.label)} &lt;${escHtml(a.email)}&gt;</option>`).join('');
+  const accs = window._emailAccountsCache || [];
+  const accountOpts = accs.map(a => `<option value="${a.id}">${escHtml(a.label)} &lt;${escHtml(a.email)}&gt;</option>`).join('');
+  const firstSig = (accs[0] && accs[0].signature) ? '\n\n-- \n' + accs[0].signature : '';
   compose.innerHTML = `
     <div class="email-detail">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
@@ -14274,7 +14281,7 @@ function openComposeEmail() {
       </div>
       <div class="form-group" style="margin-bottom:12px">
         <label style="font-size:12px">Absender-Konto</label>
-        <select id="composeFromAccount" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px">${accountOpts}</select>
+        <select id="composeFromAccount" onchange="applyComposeSignature()" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px">${accountOpts}</select>
       </div>
       <div class="form-group" style="margin-bottom:12px">
         <label style="font-size:12px">${t('An','To')}</label>
@@ -14290,7 +14297,7 @@ function openComposeEmail() {
       </div>
       <div class="form-group" style="margin-bottom:16px">
         <label style="font-size:12px">${t('Nachricht','Message')}</label>
-        <textarea style="width:100%;height:200px;padding:12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;resize:vertical;outline:none;font-family:inherit" placeholder="${t('Nachricht schreiben...','Write message...')}"></textarea>
+        <textarea id="composeEmailBody" data-current-sig="${escHtml(firstSig)}" style="width:100%;height:240px;padding:12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;resize:vertical;outline:none;font-family:inherit" placeholder="${t('Nachricht schreiben...','Write message...')}">${escHtml(firstSig)}</textarea>
       </div>
 
       <!-- Anhänge -->
@@ -14314,6 +14321,28 @@ function openComposeEmail() {
         <button class="btn btn-gold btn-sm" onclick="sendComposeEmail()">➤ ${t('Senden','Send')}</button>
       </div>
     </div>`;
+  // Cursor at top so the user writes above the signature
+  setTimeout(() => {
+    const ta = document.getElementById('composeEmailBody');
+    if (ta) { ta.focus(); try { ta.setSelectionRange(0, 0); } catch (_) {} ta.scrollTop = 0; }
+  }, 30);
+}
+
+function applyComposeSignature() {
+  const sel = document.getElementById('composeFromAccount');
+  const ta = document.getElementById('composeEmailBody');
+  if (!sel || !ta) return;
+  const acc = (window._emailAccountsCache || []).find(a => a.id === sel.value);
+  const newSig = (acc && acc.signature) ? '\n\n-- \n' + acc.signature : '';
+  const oldSig = ta.dataset.currentSig || '';
+  // Replace the previous signature at the end of the body if it's still there,
+  // otherwise append the new signature so nothing the user wrote is lost.
+  let body = ta.value;
+  if (oldSig && body.endsWith(oldSig)) {
+    body = body.slice(0, body.length - oldSig.length);
+  }
+  ta.value = body + newSig;
+  ta.dataset.currentSig = newSig;
 }
 
 function handleComposeAttachment(files) {
@@ -14351,7 +14380,7 @@ async function sendComposeEmail() {
   const to = document.getElementById('composeEmailTo').value.trim();
   const cc = document.getElementById('composeEmailCc').value.trim();
   const subject = document.getElementById('composeEmailSubject').value.trim();
-  const bodyEl = document.querySelector('#emailComposeView textarea');
+  const bodyEl = document.getElementById('composeEmailBody') || document.querySelector('#emailComposeView textarea');
   const body = bodyEl ? bodyEl.value : '';
 
   if (!accountId) { showNotification('Bitte Absender-Konto wählen', 'warning'); return; }
@@ -14386,7 +14415,8 @@ function readAccountForm() {
     imap_secure: document.getElementById('newEmailImapSecure').checked,
     smtp_host: document.getElementById('newEmailSmtp').value.trim(),
     smtp_port: parseInt(document.getElementById('newEmailSmtpPort').value, 10) || 587,
-    smtp_secure: document.getElementById('newEmailSmtpSecure').checked
+    smtp_secure: document.getElementById('newEmailSmtpSecure').checked,
+    signature: (document.getElementById('newEmailSignature')?.value || '').trim()
   };
 }
 
@@ -14485,6 +14515,11 @@ function openEditEmailAccount(id) {
             <label style="font-size:12px">Neues Passwort (leer lassen, wenn unverändert)</label>
             <input type="password" id="editAccPassword" placeholder="••••••••">
           </div>
+          <div class="form-group">
+            <label style="font-size:12px">Signatur</label>
+            <textarea id="editAccSignature" rows="5" placeholder="Mit freundlichen Grüßen&#10;..." style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
+            <div style="font-size:11px;color:var(--text-light);margin-top:4px">Wird beim Schreiben einer neuen E-Mail automatisch angefügt.</div>
+          </div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-outline" onclick="document.getElementById('editEmailAccountModal').classList.remove('active')">Abbrechen</button>
@@ -14505,6 +14540,7 @@ function openEditEmailAccount(id) {
   document.getElementById('editAccImapSecure').checked = acc.imap_secure !== false;
   document.getElementById('editAccSmtpSecure').checked = !!acc.smtp_secure;
   document.getElementById('editAccPassword').value = '';
+  document.getElementById('editAccSignature').value = acc.signature || '';
   modal.classList.add('active');
 }
 
@@ -14520,7 +14556,8 @@ async function saveEditEmailAccount() {
     smtp_host: document.getElementById('editAccSmtpHost').value.trim(),
     smtp_port: document.getElementById('editAccSmtpPort').value.trim(),
     imap_secure: document.getElementById('editAccImapSecure').checked,
-    smtp_secure: document.getElementById('editAccSmtpSecure').checked
+    smtp_secure: document.getElementById('editAccSmtpSecure').checked,
+    signature: document.getElementById('editAccSignature').value
   };
   const pwd = document.getElementById('editAccPassword').value;
   if (pwd) patch.password = pwd;
@@ -14569,7 +14606,7 @@ async function addEmailAccount() {
     console.log('[email] POST /api/email/accounts', { ...form, password: '***' });
     const r = await apiFetch('/api/email/accounts', { method: 'POST', body: JSON.stringify(form) });
     console.log('[email] saved account', r);
-    ['newEmailLabel','newEmailFromName','newEmailAddr','newEmailUser','newEmailImap','newEmailImapPort','newEmailSmtp','newEmailSmtpPort','newEmailPass'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    ['newEmailLabel','newEmailFromName','newEmailAddr','newEmailUser','newEmailImap','newEmailImapPort','newEmailSmtp','newEmailSmtpPort','newEmailPass','newEmailSignature'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     result.innerHTML = '<div style="padding:10px;background:#d1fae5;color:#065f46;border-radius:6px">✅ Konto gespeichert! Lade Liste und starte ersten Sync…</div>';
     await loadEmailAccounts();
     const latest = (window._emailAccountsCache || [])[0];
