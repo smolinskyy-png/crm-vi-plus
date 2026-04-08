@@ -2884,15 +2884,15 @@
         <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr)">
           <div class="stat-card">
             <div class="stat-label">Provisionen (offen)</div>
-            <div class="stat-value" style="color:var(--warning)">12.450 €</div>
+            <div class="stat-value" style="color:var(--warning)" id="provOffenValue">0 €</div>
           </div>
           <div class="stat-card">
             <div class="stat-label">Provisionen (ausgezahlt)</div>
-            <div class="stat-value" style="color:var(--success)">34.800 €</div>
+            <div class="stat-value" style="color:var(--success)" id="provAusgezahltValue">0 €</div>
           </div>
           <div class="stat-card">
             <div class="stat-label">Gesamt dieses Jahr</div>
-            <div class="stat-value">47.250 €</div>
+            <div class="stat-value" id="provGesamtValue">0 €</div>
           </div>
         </div>
         <div class="card">
@@ -2900,48 +2900,8 @@
           <div class="card-body" style="padding:0">
             <table class="list-table">
               <thead><tr><th>Lead</th><th>Objekt</th><th>Betrag</th><th>Status</th><th>Datum</th><th>Rechnung</th></tr></thead>
-              <tbody>
-                <tr>
-                  <td><a href="#" onclick="event.preventDefault();showPage('pipeline',document.querySelector('.nav-item[onclick*=pipeline]'))" style="color:var(--primary);text-decoration:none;font-weight:700;cursor:pointer">Kathrin Schulze</a></td>
-                  <td><a href="#" onclick="event.preventDefault();showPage('projekte',document.querySelector('.nav-item[onclick*=projekte]'))" style="color:var(--primary);text-decoration:none;cursor:pointer">Residenz am Park, Whg. 12</a></td>
-                  <td>4.200 €</td>
-                  <td><span class="stage-badge" style="background:#d1fae5;color:#065f46">Ausgezahlt</span></td>
-                  <td>01.03.2026</td>
-                  <td><span style="font-size:12px;color:var(--success)">Eingereicht</span></td>
-                </tr>
-                <tr>
-                  <td><a href="#" onclick="event.preventDefault();showPage('pipeline',document.querySelector('.nav-item[onclick*=pipeline]'))" style="color:var(--primary);text-decoration:none;font-weight:700;cursor:pointer">Peter Neumann</a></td>
-                  <td><a href="#" onclick="event.preventDefault();showPage('projekte',document.querySelector('.nav-item[onclick*=projekte]'))" style="color:var(--primary);text-decoration:none;cursor:pointer">Stadtquartier, Whg. 3</a></td>
-                  <td>6.800 €</td>
-                  <td><span class="stage-badge" style="background:#d1fae5;color:#065f46">Ausgezahlt</span></td>
-                  <td>25.02.2026</td>
-                  <td><span style="font-size:12px;color:var(--success)">Eingereicht</span></td>
-                </tr>
-                <tr>
-                  <td><a href="#" onclick="event.preventDefault();showPage('pipeline',document.querySelector('.nav-item[onclick*=pipeline]'))" style="color:var(--primary);text-decoration:none;font-weight:700;cursor:pointer">Sandra Frank</a></td>
-                  <td><a href="#" onclick="event.preventDefault();showPage('projekte',document.querySelector('.nav-item[onclick*=projekte]'))" style="color:var(--primary);text-decoration:none;cursor:pointer">Parkblick, Whg. 7</a></td>
-                  <td>3.600 €</td>
-                  <td><span class="stage-badge" style="background:#fef3c7;color:#92400e">Offen</span></td>
-                  <td>20.02.2026</td>
-                  <td><label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border:1px dashed var(--gold);border-radius:6px;font-size:12px;color:var(--gold-dark)">📎 PDF<input type="file" accept=".pdf" style="display:none" onchange="showNotification(t('Rechnung hochgeladen: ','Invoice uploaded: ')+this.files[0].name,'success')"></label></td>
-                </tr>
-                <tr>
-                  <td><a href="#" onclick="event.preventDefault();showPage('pipeline',document.querySelector('.nav-item[onclick*=pipeline]'))" style="color:var(--primary);text-decoration:none;font-weight:700;cursor:pointer">David Krause</a></td>
-                  <td><a href="#" onclick="event.preventDefault();showPage('projekte',document.querySelector('.nav-item[onclick*=projekte]'))" style="color:var(--primary);text-decoration:none;cursor:pointer">Seeresidenz, Whg. 21</a></td>
-                  <td>5.250 €</td>
-                  <td><span class="stage-badge" style="background:#fef3c7;color:#92400e">Offen</span></td>
-                  <td>08.03.2026</td>
-                  <td><label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border:1px dashed var(--gold);border-radius:6px;font-size:12px;color:var(--gold-dark)">📎 PDF<input type="file" accept=".pdf" style="display:none" onchange="showNotification(t('Rechnung hochgeladen: ','Invoice uploaded: ')+this.files[0].name,'success')"></label></td>
-                </tr>
-                <tr>
-                  <td><a href="#" onclick="event.preventDefault();showPage('pipeline',document.querySelector('.nav-item[onclick*=pipeline]'))" style="color:var(--primary);text-decoration:none;font-weight:700;cursor:pointer">Stefan Richter</a></td>
-                  <td><a href="#" onclick="event.preventDefault();showPage('projekte',document.querySelector('.nav-item[onclick*=projekte]'))" style="color:var(--primary);text-decoration:none;cursor:pointer">Altstadtloft, Whg. 5</a></td>
-                  <td>3.600 €</td>
-                  <td><span class="stage-badge" style="background:#fef3c7;color:#92400e">Offen</span></td>
-                  <td>12.03.2026</td>
-                  <td><label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border:1px dashed var(--gold);border-radius:6px;font-size:12px;color:var(--gold-dark)">📎 PDF<input type="file" accept=".pdf" style="display:none" onchange="showNotification(t('Rechnung hochgeladen: ','Invoice uploaded: ')+this.files[0].name,'success')"></label></td>
-                </tr>
-              </tbody>
+              <tbody id="provisionenTableBody">
+                <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-light)">Noch keine Provisionen vorhanden</td></tr>
             </table>
           </div>
         </div>
@@ -3271,13 +3231,7 @@
                   <h4 style="font-size:14px;color:var(--primary)">🏢 Sondereigentumsverwaltung (SEV)</h4>
                   <button class="btn btn-outline btn-sm" style="font-size:11px;padding:2px 8px" onclick="addAfterSalesContact('sev')">+ Hinzufügen</button>
                 </div>
-                <div id="sevContactsList">
-                  <div style="background:var(--bg);padding:10px;border-radius:8px;margin-bottom:8px;font-size:13px">
-                    <div style="font-weight:600">Müller Hausverwaltung GmbH</div>
-                    <div style="color:var(--text-light)">📞 +49 30 12345678</div>
-                    <div style="color:var(--text-light)">✉ info@mueller-hv.de</div>
-                  </div>
-                </div>
+                <div id="sevContactsList"></div>
               </div>
             </div>
 
@@ -3288,13 +3242,7 @@
                   <h4 style="font-size:14px;color:var(--primary)">📋 Restnutzungsdauer-Gutachter</h4>
                   <button class="btn btn-outline btn-sm" style="font-size:11px;padding:2px 8px" onclick="addAfterSalesContact('gutachter')">+ Hinzufügen</button>
                 </div>
-                <div id="gutachterContactsList">
-                  <div style="background:var(--bg);padding:10px;border-radius:8px;margin-bottom:8px;font-size:13px">
-                    <div style="font-weight:600">Dipl.-Ing. Hans Weber</div>
-                    <div style="color:var(--text-light)">📞 +49 89 9876543</div>
-                    <div style="color:var(--text-light)">✉ weber@gutachter.de</div>
-                  </div>
-                </div>
+                <div id="gutachterContactsList"></div>
               </div>
             </div>
 
@@ -3305,13 +3253,7 @@
                   <h4 style="font-size:14px;color:var(--primary)">🧾 Steuerberater</h4>
                   <button class="btn btn-outline btn-sm" style="font-size:11px;padding:2px 8px" onclick="addAfterSalesContact('steuerberater')">+ Hinzufügen</button>
                 </div>
-                <div id="steuerberaterContactsList">
-                  <div style="background:var(--bg);padding:10px;border-radius:8px;margin-bottom:8px;font-size:13px">
-                    <div style="font-weight:600">StB. Claudia Richter</div>
-                    <div style="color:var(--text-light)">📞 +49 40 5554433</div>
-                    <div style="color:var(--text-light)">✉ richter@stb-kanzlei.de</div>
-                  </div>
-                </div>
+                <div id="steuerberaterContactsList"></div>
               </div>
             </div>
 
@@ -3344,13 +3286,11 @@
           <h3 style="font-size:18px;color:var(--primary)">Videokurse</h3>
           <button class="btn btn-gold btn-sm" id="btnVideoUpload" style="display:none" onclick="showNotification(t('Video-Upload Funktion bereit — Videos werden hier hochgeladen','Video upload ready - Videos will be uploaded here'), 'info')">📹 Video hochladen</button>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">
-          <div class="card"><div class="card-body" style="padding:0"><div style="background:var(--primary);color:white;padding:48px 20px;text-align:center;border-radius:var(--radius) var(--radius) 0 0"><div style="font-size:40px;margin-bottom:8px">🎬</div><div style="font-size:14px;opacity:0.7">Video kommt bald</div></div><div style="padding:16px"><h4 style="font-size:15px;color:var(--primary)">Einführung in den Immobilienvertrieb</h4><p style="font-size:12px;color:var(--text-light);margin-top:4px">Grundlagen für neue Vertriebspartner</p></div></div></div>
-          <div class="card"><div class="card-body" style="padding:0"><div style="background:var(--primary);color:white;padding:48px 20px;text-align:center;border-radius:var(--radius) var(--radius) 0 0"><div style="font-size:40px;margin-bottom:8px">🎬</div><div style="font-size:14px;opacity:0.7">Video kommt bald</div></div><div style="padding:16px"><h4 style="font-size:15px;color:var(--primary)">Bonitätsprüfung richtig durchführen</h4><p style="font-size:12px;color:var(--text-light);margin-top:4px">Schritt für Schritt Anleitung</p></div></div></div>
-          <div class="card"><div class="card-body" style="padding:0"><div style="background:var(--primary);color:white;padding:48px 20px;text-align:center;border-radius:var(--radius) var(--radius) 0 0"><div style="font-size:40px;margin-bottom:8px">🎬</div><div style="font-size:14px;opacity:0.7">Video kommt bald</div></div><div style="padding:16px"><h4 style="font-size:15px;color:var(--primary)">Finanzierungsgespräch führen</h4><p style="font-size:12px;color:var(--text-light);margin-top:4px">Tipps für das Kundengespräch</p></div></div></div>
-          <div class="card"><div class="card-body" style="padding:0"><div style="background:var(--primary);color:white;padding:48px 20px;text-align:center;border-radius:var(--radius) var(--radius) 0 0"><div style="font-size:40px;margin-bottom:8px">🎬</div><div style="font-size:14px;opacity:0.7">Video kommt bald</div></div><div style="padding:16px"><h4 style="font-size:15px;color:var(--primary)">Objekte erfolgreich präsentieren</h4><p style="font-size:12px;color:var(--text-light);margin-top:4px">Verkaufsargumente aufbauen</p></div></div></div>
-          <div class="card"><div class="card-body" style="padding:0"><div style="background:var(--primary);color:white;padding:48px 20px;text-align:center;border-radius:var(--radius) var(--radius) 0 0"><div style="font-size:40px;margin-bottom:8px">🎬</div><div style="font-size:14px;opacity:0.7">Video kommt bald</div></div><div style="padding:16px"><h4 style="font-size:15px;color:var(--primary)">After Sales — Kunden langfristig binden</h4><p style="font-size:12px;color:var(--text-light);margin-top:4px">Empfehlungen generieren</p></div></div></div>
-          <div class="card"><div class="card-body" style="padding:0"><div style="background:var(--primary);color:white;padding:48px 20px;text-align:center;border-radius:var(--radius) var(--radius) 0 0"><div style="font-size:40px;margin-bottom:8px">🎬</div><div style="font-size:14px;opacity:0.7">Video kommt bald</div></div><div style="padding:16px"><h4 style="font-size:15px;color:var(--primary)">CRM VI PLUS richtig nutzen</h4><p style="font-size:12px;color:var(--text-light);margin-top:4px">Alle Funktionen erklärt</p></div></div></div>
+        <div id="videokurseGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px"></div>
+        <div id="videokurseEmpty" style="text-align:center;padding:60px 20px;color:var(--text-light)">
+          <div style="font-size:48px;margin-bottom:12px">🎬</div>
+          <h3 style="margin-bottom:8px">Keine Videokurse vorhanden</h3>
+          <p style="font-size:14px">Lade das erste Video hoch, um loszulegen.</p>
         </div>
       </div>
 
@@ -3444,12 +3384,8 @@
           <div class="card-body" style="padding:0">
             <table class="list-table">
               <thead><tr><th>Name</th><th>E-Mail</th><th>Rolle</th><th>Status</th><th>Beigetreten</th></tr></thead>
-              <tbody>
-                <tr><td><strong>Oleh S.</strong></td><td>admin@vertriebsimmo.de</td><td><span class="stage-badge" style="background:var(--gold)20;color:var(--gold-dark)">Admin</span></td><td><span class="stage-badge" style="background:#d1fae5;color:#065f46">Aktiv</span></td><td>01.01.2026</td></tr>
-                <tr><td><strong>Thomas Weber</strong></td><td>t.weber@vertriebsimmo.de</td><td><span class="stage-badge" style="background:#dbeafe;color:#1e40af">Vertriebsleiter</span></td><td><span class="stage-badge" style="background:#d1fae5;color:#065f46">Aktiv</span></td><td>15.01.2026</td></tr>
-                <tr><td><strong>Sarah Müller</strong></td><td>s.mueller@vertriebsimmo.de</td><td><span class="stage-badge" style="background:#e0e7ff;color:#4338ca">Vertriebspartner</span></td><td><span class="stage-badge" style="background:#d1fae5;color:#065f46">Aktiv</span></td><td>01.02.2026</td></tr>
-                <tr><td><strong>Lisa Becker</strong></td><td>l.becker@vertriebsimmo.de</td><td><span class="stage-badge" style="background:#e0e7ff;color:#4338ca">Vertriebspartner</span></td><td><span class="stage-badge" style="background:#d1fae5;color:#065f46">Aktiv</span></td><td>10.02.2026</td></tr>
-                <tr><td><strong>Markus Klein</strong></td><td>m.klein@partner.de</td><td><span class="stage-badge" style="background:#f3e8ff;color:#7c3aed">Sub-Partner</span></td><td><span class="stage-badge" style="background:#fef3c7;color:#92400e">Eingeladen</span></td><td>—</td></tr>
+              <tbody id="benutzerTableBody">
+                <tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-light)">Noch keine Benutzer — klicke auf "+ Benutzer einladen"</td></tr>
               </tbody>
             </table>
           </div>
@@ -11599,18 +11535,18 @@ function renderDashboard() {
     return count > 0 ? '<span><span style="background:' + st.color + ';width:10px;height:10px;border-radius:3px;display:inline-block"></span> ' + stageName(st) + ' (' + count + ')</span>' : '';
   }).join('');
 
-  var perfData = [
-    { name: 'Oleh S.', initials: 'OS', deals: 8, vol: '2.4M €' },
-    { name: 'Sarah M.', initials: 'SM', deals: 6, vol: '1.8M €' },
-    { name: 'Thomas W.', initials: 'TW', deals: 4, vol: '1.1M €' }
-  ];
+  var perfData = [];
 
   html += '<div class="dash-row dash-row-2fr1fr"><div class="card"><div class="card-header"><h3>' + t('Pipeline-Übersicht','Pipeline Overview') + '</h3></div><div class="card-body"><div class="dash-pipeline-bar">' + barHtml + '</div><div class="dash-pipeline-legend">' + legendHtml + '</div></div></div>';
   html += '<div class="card"><div class="card-header"><h3>' + t('Vertriebspartner Performance','Sales Partner Performance') + '</h3></div><div class="card-body">';
-  perfData.forEach(function(p, i) {
-    var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
-    html += '<div class="dash-perf-row"><div class="dash-perf-avatar">' + p.initials + '</div><div class="dash-perf-info"><h4>' + medal + ' ' + p.name + '</h4><p>' + p.deals + ' ' + t('Abschlüsse','deals') + ' · ' + p.vol + '</p></div><div class="dash-perf-val">' + p.deals + '</div></div>';
-  });
+  if (perfData.length === 0) {
+    html += '<p style="color:var(--text-light);font-size:13px;text-align:center;padding:20px">' + t('Noch keine Daten','No data yet') + '</p>';
+  } else {
+    perfData.forEach(function(p, i) {
+      var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
+      html += '<div class="dash-perf-row"><div class="dash-perf-avatar">' + p.initials + '</div><div class="dash-perf-info"><h4>' + medal + ' ' + p.name + '</h4><p>' + p.deals + ' ' + t('Abschlüsse','deals') + ' · ' + p.vol + '</p></div><div class="dash-perf-val">' + p.deals + '</div></div>';
+    });
+  }
   html += '</div></div></div>';
 
   var notifIcons = { success: '✅', info: 'ℹ️', warning: '⚠️', lead: '👤', deal: '🤝', system: '⚙️' };
