@@ -1,0 +1,15 @@
+{
+  "name": "crm-vi-plus",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CRM VI PLUS - Vercel serverless API for email integration",
+  "engines": {
+    "node": "20.x"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "imapflow": "^1.0.164",
+    "mailparser": "^3.7.1",
+    "nodemailer": "^6.9.15"
+  }
+}

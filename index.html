@@ -3305,6 +3305,8 @@
         <div class="chat-tab-content active" id="chatTabEmails">
           <div class="email-toolbar">
             <input class="email-search" type="text" placeholder="E-Mails durchsuchen..." oninput="filterEmails(this.value)">
+            <select id="emailAccountFilter" onchange="renderEmailList()" style="padding:8px;border-radius:8px;border:1px solid var(--border);font-size:13px"><option value="">Alle Konten</option></select>
+            <button class="btn btn-outline btn-sm" onclick="syncAllEmailAccounts()" id="emailSyncBtn">🔄 Sync</button>
             <button class="btn btn-gold btn-sm" onclick="openComposeEmail()">✉️ Neue E-Mail</button>
           </div>
           <div id="emailDetailView" style="display:none"></div>
@@ -3321,8 +3323,16 @@
               <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
                 <h4 style="font-size:13px;color:var(--text);margin-bottom:12px">Neues E-Mail-Konto verknüpfen</h4>
                 <div class="form-group" style="margin-bottom:12px">
+                  <label style="font-size:12px">Bezeichnung (z.B. "Büro")</label>
+                  <input type="text" id="newEmailLabel" placeholder="Mein Postfach">
+                </div>
+                <div class="form-group" style="margin-bottom:12px">
                   <label style="font-size:12px">E-Mail-Adresse</label>
                   <input type="email" id="newEmailAddr" placeholder="deine@email.de">
+                </div>
+                <div class="form-group" style="margin-bottom:12px">
+                  <label style="font-size:12px">Benutzername (meist = E-Mail-Adresse)</label>
+                  <input type="text" id="newEmailUser" placeholder="deine@email.de">
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
                   <div class="form-group" style="margin-bottom:12px">
@@ -3345,8 +3355,17 @@
                 <div class="form-group" style="margin-bottom:12px">
                   <label style="font-size:12px">Passwort / App-Passwort</label>
                   <input type="password" id="newEmailPass" placeholder="••••••••">
+                  <div style="font-size:11px;color:var(--text-light);margin-top:4px">Für Gmail mit 2FA: App-Passwort unter myaccount.google.com/apppasswords erstellen.</div>
                 </div>
-                <button class="btn btn-primary btn-sm" onclick="addEmailAccount()" style="width:100%">Konto verknüpfen</button>
+                <div style="display:flex;gap:14px;margin-bottom:12px;font-size:12px">
+                  <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="newEmailImapSecure" checked> IMAP SSL/TLS</label>
+                  <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="newEmailSmtpSecure"> SMTP SSL (sonst STARTTLS)</label>
+                </div>
+                <div id="newEmailTestResult" style="margin-bottom:10px;font-size:12px"></div>
+                <div style="display:flex;gap:8px">
+                  <button class="btn btn-outline btn-sm" onclick="testEmailAccount()" style="flex:1">🔌 Verbindung testen</button>
+                  <button class="btn btn-primary btn-sm" onclick="addEmailAccount()" style="flex:1">Konto verknüpfen</button>
+                </div>
               </div>
             </div>
           </div>
@@ -5656,6 +5675,12 @@ async function submitInviteUser() {
 
   if (!firstName || !lastName || !email) {
     alert('Bitte Vorname, Nachname und E-Mail ausfüllen.');
+    return;
+  }
+
+  // Admin-Account schützen – darf nicht über das Invite-Formular verändert werden
+  if (email.toLowerCase() === 'smolinskyy@vertriebsimmo.de') {
+    alert('Dieser Account ist der Admin und darf nicht eingeladen werden.');
     return;
   }
 
@@ -13051,8 +13076,8 @@ let emailAccounts = [];
 let selectedEmail = null;
 
 function renderChats() {
-  renderEmailList();
-  renderEmailAccounts();
+  // Load accounts and mails from API/DB
+  loadEmailAccounts().then(() => loadEmailsFromDb());
 }
 
 function switchChatTab(tab, btn) {
@@ -13062,71 +13087,173 @@ function switchChatTab(tab, btn) {
   document.getElementById('chatTab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
 }
 
-// ===== EMAIL FUNCTIONS =====
+// ===== EMAIL FUNCTIONS (API-backed) =====
 
-function renderEmailList(filter) {
-  const list = document.getElementById('emailList');
-  let filtered = emailData;
-  if (filter) {
-    const q = filter.toLowerCase();
-    filtered = emailData.filter(e => e.from.toLowerCase().includes(q) || e.subject.toLowerCase().includes(q) || e.preview.toLowerCase().includes(q));
+// In-memory cache of emails fetched from Supabase
+window._emailCache = [];
+window._emailAccountsCache = [];
+window._emailFilter = '';
+
+async function apiFetch(path, opts = {}) {
+  const { data } = await sb.auth.getSession();
+  const token = data && data.session && data.session.access_token;
+  if (!token) throw new Error('Nicht eingeloggt');
+  const headers = Object.assign(
+    { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+    opts.headers || {}
+  );
+  const res = await fetch(path, { ...opts, headers });
+  let body = null;
+  try { body = await res.json(); } catch (_) {}
+  if (!res.ok) {
+    const msg = (body && body.error) || ('HTTP ' + res.status);
+    throw new Error(msg);
   }
-  list.innerHTML = filtered.map(e => `
-    <div class="email-item ${e.unread ? 'unread' : ''}" onclick="openEmail(${e.id})">
-      <div class="email-avatar">${e.from.split(' ').map(w=>w[0]).join('')}</div>
-      <div class="email-content">
-        <div class="email-header">
-          <span class="email-sender">${e.from}</span>
-          <span class="email-date">${e.date} ${e.time}</span>
-        </div>
-        <div class="email-subject">${e.subject}</div>
-        <div class="email-preview">${e.preview}</div>
-      </div>
-    </div>
-  `).join('');
+  return body;
 }
 
-function filterEmails(val) { renderEmailList(val); }
+function escHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+async function loadEmailsFromDb() {
+  try {
+    const accountFilter = document.getElementById('emailAccountFilter');
+    const accountId = accountFilter ? accountFilter.value : '';
+    let q = sb.from('emails').select('*').order('date_sent', { ascending: false }).limit(500);
+    if (accountId) q = q.eq('account_id', accountId);
+    const { data, error } = await q;
+    if (error) throw error;
+    window._emailCache = data || [];
+    renderEmailList();
+    updateChatsBadge();
+  } catch (e) {
+    console.error('loadEmailsFromDb', e);
+  }
+}
+
+function renderEmailList() {
+  const list = document.getElementById('emailList');
+  if (!list) return;
+  let items = window._emailCache || [];
+  const filter = (window._emailFilter || '').toLowerCase();
+  if (filter) {
+    items = items.filter(e =>
+      (e.from_address || '').toLowerCase().includes(filter) ||
+      (e.from_name || '').toLowerCase().includes(filter) ||
+      (e.subject || '').toLowerCase().includes(filter) ||
+      (e.body_text || '').toLowerCase().includes(filter)
+    );
+  }
+  if (!items.length) {
+    list.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--text-light)"><div style="font-size:48px;margin-bottom:12px">📭</div><h3 style="margin-bottom:8px">Keine E-Mails</h3><p style="font-size:14px">Verknüpfe ein E-Mail-Konto in den Einstellungen und klicke auf "Sync".</p></div>';
+    return;
+  }
+  list.innerHTML = items.map(e => {
+    const fromName = e.from_name || e.from_address || '—';
+    const initials = fromName.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    const d = e.date_sent ? new Date(e.date_sent) : null;
+    const dateStr = d ? d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '';
+    const timeStr = d ? d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '';
+    const preview = (e.body_text || '').slice(0, 120).replace(/\s+/g, ' ');
+    return `
+      <div class="email-item ${e.is_read ? '' : 'unread'}" onclick="openEmail('${e.id}')">
+        <div class="email-avatar">${escHtml(initials)}</div>
+        <div class="email-content">
+          <div class="email-header">
+            <span class="email-sender">${escHtml(fromName)}${e.has_attachments ? ' 📎' : ''}</span>
+            <span class="email-date">${dateStr} ${timeStr}</span>
+          </div>
+          <div class="email-subject">${escHtml(e.subject || '(ohne Betreff)')}</div>
+          <div class="email-preview">${escHtml(preview)}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function filterEmails(val) { window._emailFilter = val || ''; renderEmailList(); }
 
 let emailAttachments = [];
 
-function openEmail(id) {
-  const e = emailData.find(x => x.id === id);
+async function openEmail(id) {
+  const e = (window._emailCache || []).find(x => x.id === id);
   if (!e) return;
-  e.unread = false;
   selectedEmail = e;
   emailAttachments = [];
-  updateChatsBadge();
   document.getElementById('emailList').style.display = 'none';
   document.querySelector('#chatTabEmails .email-toolbar').style.display = 'none';
   const detail = document.getElementById('emailDetailView');
   detail.style.display = 'block';
+
+  // Mark as read (optimistic UI)
+  if (!e.is_read) {
+    e.is_read = true;
+    updateChatsBadge();
+    apiFetch('/api/email/mark-read', {
+      method: 'POST',
+      body: JSON.stringify({ email_id: e.id, is_read: true })
+    }).catch(err => console.warn('mark-read failed', err));
+  }
+
+  // Load attachments list
+  let attachments = [];
+  try {
+    const { data } = await sb.from('email_attachments').select('*').eq('email_id', e.id);
+    attachments = data || [];
+  } catch (_) {}
+
+  const d = e.date_sent ? new Date(e.date_sent) : null;
+  const dateStr = d ? d.toLocaleString('de-DE') : '';
+  const fromDisplay = (e.from_name ? e.from_name + ' ' : '') + '<' + (e.from_address || '') + '>';
+  const toDisplay = Array.isArray(e.to_addresses) ? e.to_addresses.map(a => a.address || a).join(', ') : '';
+  const bodyHtml = e.body_html
+    ? `<iframe sandbox="allow-same-origin" style="width:100%;min-height:400px;border:none" srcdoc="${escHtml(e.body_html).replace(/"/g,'&quot;')}"></iframe>`
+    : `<div style="white-space:pre-wrap;font-family:inherit;line-height:1.6">${escHtml(e.body_text || '')}</div>`;
+
+  const attachmentsHtml = attachments.length
+    ? `<div style="margin-top:14px;padding:12px;background:#f8f9fd;border-radius:8px">
+         <div style="font-size:12px;font-weight:600;color:var(--primary);margin-bottom:8px">📎 ${attachments.length} Anhang/Anhänge</div>
+         ${attachments.map(a => {
+           const sizeStr = a.size_bytes ? (a.size_bytes < 1024 ? a.size_bytes + ' B' : a.size_bytes < 1048576 ? (a.size_bytes/1024).toFixed(1)+' KB' : (a.size_bytes/1048576).toFixed(1)+' MB') : '';
+           return `<div style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;background:white;border:1px solid var(--border);border-radius:6px;font-size:12px;margin:0 6px 6px 0;cursor:pointer" onclick="downloadEmailAttachment('${a.id}')">📎 <strong>${escHtml(a.filename)}</strong> <span style="color:var(--text-light)">(${sizeStr})</span></div>`;
+         }).join('')}
+       </div>`
+    : '';
+
   detail.innerHTML = `
     <div class="email-detail">
       <div class="email-detail-header">
         <div style="flex:1">
-          <div class="email-detail-subject">${e.subject}</div>
-          <div class="email-detail-meta">${t('Von','From')}: <strong>${e.from}</strong> &lt;${e.email}&gt; — ${e.date} ${e.time}</div>
+          <div class="email-detail-subject">${escHtml(e.subject || '(ohne Betreff)')}</div>
+          <div class="email-detail-meta">${t('Von','From')}: <strong>${escHtml(fromDisplay)}</strong> — ${dateStr}</div>
+          ${toDisplay ? `<div class="email-detail-meta">${t('An','To')}: ${escHtml(toDisplay)}</div>` : ''}
         </div>
         <div style="display:flex;gap:8px;align-items:flex-start">
           <button class="btn btn-outline btn-sm" onclick="closeEmail()">← ${t('Zurück','Back')}</button>
         </div>
       </div>
 
-      <!-- Action Buttons (Outlook-Style) -->
       <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
         <button class="btn btn-outline btn-sm" onclick="emailAction('reply')" style="gap:6px">↩️ ${t('Antworten','Reply')}</button>
         <button class="btn btn-outline btn-sm" onclick="emailAction('replyAll')" style="gap:6px">↩️↩️ ${t('Allen antworten','Reply All')}</button>
         <button class="btn btn-outline btn-sm" onclick="emailAction('forward')" style="gap:6px">➡️ ${t('Weiterleiten','Forward')}</button>
-        <button class="btn btn-outline btn-sm" onclick="showNotification(t('E-Mail gelöscht','Email deleted'),'info');closeEmail()" style="gap:6px;color:var(--danger);border-color:var(--danger)">🗑️ ${t('Löschen','Delete')}</button>
-        <button class="btn btn-outline btn-sm" onclick="showNotification(t('E-Mail archiviert','Email archived'),'success')" style="gap:6px">📥 ${t('Archivieren','Archive')}</button>
       </div>
 
-      <div class="email-detail-body">${e.body.replace(/\n/g, '<br>')}</div>
+      <div class="email-detail-body">${bodyHtml}</div>
+      ${attachmentsHtml}
 
-      <!-- Reply/Forward Area (hidden by default) -->
       <div id="emailActionArea" style="display:none"></div>
     </div>`;
+  renderEmailList();
+}
+
+async function downloadEmailAttachment(attId) {
+  try {
+    const r = await apiFetch('/api/email/attachment?id=' + encodeURIComponent(attId));
+    if (r && r.url) window.open(r.url, '_blank');
+  } catch (e) {
+    showNotification('Download fehlgeschlagen: ' + e.message, 'warning');
+  }
 }
 
 function emailAction(action) {
@@ -13135,25 +13262,25 @@ function emailAction(action) {
   emailAttachments = [];
 
   let toValue = '', subjectValue = '', bodyPrefix = '', title = '';
+  const subject = e.subject || '';
+  const fromAddr = e.from_address || '';
 
   if (action === 'reply') {
-    toValue = e.email;
-    subjectValue = 'Re: ' + e.subject;
-    bodyPrefix = '';
+    toValue = fromAddr;
+    subjectValue = subject.startsWith('Re:') ? subject : 'Re: ' + subject;
     title = '↩️ ' + t('Antworten','Reply');
   } else if (action === 'replyAll') {
-    toValue = e.email;
-    subjectValue = 'Re: ' + e.subject;
-    bodyPrefix = '';
+    toValue = fromAddr;
+    subjectValue = subject.startsWith('Re:') ? subject : 'Re: ' + subject;
     title = '↩️↩️ ' + t('Allen antworten','Reply All');
   } else if (action === 'forward') {
     toValue = '';
-    subjectValue = 'Fwd: ' + e.subject;
-    bodyPrefix = '';
+    subjectValue = subject.startsWith('Fwd:') ? subject : 'Fwd: ' + subject;
     title = '➡️ ' + t('Weiterleiten','Forward');
   }
 
-  const originalQuote = `\n\n-------- ${t('Ursprüngliche Nachricht','Original Message')} --------\n${t('Von','From')}: ${e.from} <${e.email}>\n${t('Datum','Date')}: ${e.date} ${e.time}\n${t('Betreff','Subject')}: ${e.subject}\n\n${e.body}`;
+  const dStr = e.date_sent ? new Date(e.date_sent).toLocaleString('de-DE') : '';
+  const originalQuote = `\n\n-------- ${t('Ursprüngliche Nachricht','Original Message')} --------\n${t('Von','From')}: ${e.from_name || ''} <${fromAddr}>\n${t('Datum','Date')}: ${dStr}\n${t('Betreff','Subject')}: ${subject}\n\n${e.body_text || ''}`;
 
   const area = document.getElementById('emailActionArea');
   area.style.display = 'block';
@@ -13240,18 +13367,35 @@ function removeEmailAttachment(id) {
   renderEmailAttachments();
 }
 
-function sendEmailAction(action) {
+async function sendEmailAction(action) {
   const to = document.getElementById('emailActionTo').value.trim();
-  if (!to) {
-    showNotification(t('Bitte Empfänger eingeben','Please enter a recipient'), 'warning');
-    return;
+  const ccEl = document.getElementById('emailActionCc');
+  const cc = ccEl ? ccEl.value.trim() : '';
+  const subject = document.getElementById('emailActionSubject').value.trim();
+  const body = document.getElementById('emailActionBody').value;
+  if (!to) { showNotification(t('Bitte Empfänger eingeben','Please enter a recipient'), 'warning'); return; }
+  if (!selectedEmail) return;
+
+  const accountId = selectedEmail.account_id;
+  try {
+    await apiFetch('/api/email/send', {
+      method: 'POST',
+      body: JSON.stringify({
+        account_id: accountId,
+        to,
+        cc: cc || undefined,
+        subject,
+        text: body,
+        in_reply_to: selectedEmail.message_id || undefined
+      })
+    });
+    showNotification(t('Gesendet','Sent') + ' ' + t('an','to') + ' ' + to, 'success');
+    document.getElementById('emailActionArea').style.display = 'none';
+    emailAttachments = [];
+    loadEmailsFromDb();
+  } catch (e) {
+    showNotification('Fehler: ' + e.message, 'warning');
   }
-  const attachCount = emailAttachments.length;
-  const label = action === 'forward' ? t('Weitergeleitet','Forwarded') : t('Gesendet','Sent');
-  const attachMsg = attachCount > 0 ? ` (${attachCount} ${t('Anhänge','attachments')})` : '';
-  showNotification(label + ' ' + t('an','to') + ' ' + to + attachMsg, 'success');
-  document.getElementById('emailActionArea').style.display = 'none';
-  emailAttachments = [];
 }
 
 function closeEmail() {
@@ -13265,15 +13409,24 @@ function closeEmail() {
 
 function openComposeEmail() {
   emailAttachments = [];
+  if (!(window._emailAccountsCache || []).length) {
+    showNotification('Bitte zuerst ein E-Mail-Konto in den Einstellungen verknüpfen.', 'warning');
+    return;
+  }
   document.getElementById('emailList').style.display = 'none';
   document.querySelector('#chatTabEmails .email-toolbar').style.display = 'none';
   const compose = document.getElementById('emailComposeView');
   compose.style.display = 'block';
+  const accountOpts = (window._emailAccountsCache || []).map(a => `<option value="${a.id}">${escHtml(a.label)} &lt;${escHtml(a.email)}&gt;</option>`).join('');
   compose.innerHTML = `
     <div class="email-detail">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
         <h3 style="font-size:16px;color:var(--primary)">✉️ ${t('Neue E-Mail','New Email')}</h3>
         <button class="btn btn-outline btn-sm" onclick="closeEmail()">← ${t('Zurück','Back')}</button>
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label style="font-size:12px">Absender-Konto</label>
+        <select id="composeFromAccount" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px">${accountOpts}</select>
       </div>
       <div class="form-group" style="margin-bottom:12px">
         <label style="font-size:12px">${t('An','To')}</label>
@@ -13345,71 +13498,174 @@ function removeComposeAttachment(id) {
   renderComposeAttachments();
 }
 
-function sendComposeEmail() {
+async function sendComposeEmail() {
+  const accountId = document.getElementById('composeFromAccount').value;
   const to = document.getElementById('composeEmailTo').value.trim();
-  if (!to) {
-    showNotification(t('Bitte Empfänger eingeben','Please enter a recipient'), 'warning');
-    return;
+  const cc = document.getElementById('composeEmailCc').value.trim();
+  const subject = document.getElementById('composeEmailSubject').value.trim();
+  const bodyEl = document.querySelector('#emailComposeView textarea');
+  const body = bodyEl ? bodyEl.value : '';
+
+  if (!accountId) { showNotification('Bitte Absender-Konto wählen', 'warning'); return; }
+  if (!to) { showNotification(t('Bitte Empfänger eingeben','Please enter a recipient'), 'warning'); return; }
+
+  try {
+    await apiFetch('/api/email/send', {
+      method: 'POST',
+      body: JSON.stringify({ account_id: accountId, to, cc: cc || undefined, subject, text: body })
+    });
+    showNotification(t('E-Mail gesendet an ','Email sent to ') + to, 'success');
+    emailAttachments = [];
+    closeEmail();
+    loadEmailsFromDb();
+  } catch (e) {
+    showNotification('Fehler: ' + e.message, 'warning');
   }
-  const attachCount = emailAttachments.length;
-  const attachMsg = attachCount > 0 ? ` (${attachCount} ${t('Anhänge','attachments')})` : '';
-  showNotification(t('E-Mail gesendet an ','Email sent to ') + to + attachMsg, 'success');
-  emailAttachments = [];
-  closeEmail();
 }
 
-// ===== EMAIL ACCOUNT SETTINGS =====
+// ===== EMAIL ACCOUNT SETTINGS (API-backed) =====
+
+function readAccountForm() {
+  return {
+    label: document.getElementById('newEmailLabel').value.trim(),
+    email: document.getElementById('newEmailAddr').value.trim(),
+    username: document.getElementById('newEmailUser').value.trim() || document.getElementById('newEmailAddr').value.trim(),
+    password: document.getElementById('newEmailPass').value,
+    imap_host: document.getElementById('newEmailImap').value.trim(),
+    imap_port: parseInt(document.getElementById('newEmailImapPort').value, 10) || 993,
+    imap_secure: document.getElementById('newEmailImapSecure').checked,
+    smtp_host: document.getElementById('newEmailSmtp').value.trim(),
+    smtp_port: parseInt(document.getElementById('newEmailSmtpPort').value, 10) || 587,
+    smtp_secure: document.getElementById('newEmailSmtpSecure').checked
+  };
+}
+
+async function loadEmailAccounts() {
+  try {
+    const r = await apiFetch('/api/email/accounts');
+    window._emailAccountsCache = r.accounts || [];
+    renderEmailAccounts();
+    // Update account filter dropdown in mail tab
+    const sel = document.getElementById('emailAccountFilter');
+    if (sel) {
+      const current = sel.value;
+      sel.innerHTML = '<option value="">Alle Konten</option>' +
+        window._emailAccountsCache.map(a => `<option value="${a.id}">${escHtml(a.label)}</option>`).join('');
+      sel.value = current;
+    }
+  } catch (e) {
+    console.error('loadEmailAccounts', e);
+  }
+}
 
 function renderEmailAccounts() {
   const list = document.getElementById('emailAccountsList');
   if (!list) return;
-  list.innerHTML = emailAccounts.map(a => `
-    <div class="chat-account-item">
-      <div class="chat-account-info">
-        <div class="chat-account-icon">📧</div>
-        <div>
-          <div class="chat-account-email">${a.email}</div>
-          <div class="chat-account-status ${a.connected ? 'connected' : 'disconnected'}">${a.connected ? t('Verbunden','Connected') : t('Getrennt','Disconnected')}</div>
-        </div>
-      </div>
-      <button class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger);font-size:12px" onclick="removeEmailAccount(${a.id})">
-        ${t('Trennen','Disconnect')}
-      </button>
-    </div>
-  `).join('');
-}
-
-function addEmailAccount() {
-  const email = document.getElementById('newEmailAddr').value.trim();
-  const imap = document.getElementById('newEmailImap').value.trim();
-  const smtp = document.getElementById('newEmailSmtp').value.trim();
-  const pass = document.getElementById('newEmailPass').value.trim();
-
-  if (!email || !imap || !smtp || !pass) {
-    showNotification(t('Bitte alle Felder ausfüllen','Please fill in all fields'), 'warning');
+  const accs = window._emailAccountsCache || [];
+  if (!accs.length) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--text-light);padding:10px 0">Noch keine Konten verknüpft.</div>';
     return;
   }
-
-  emailAccounts.push({ id: Date.now(), email, imap, smtp, connected: true });
-  document.getElementById('newEmailAddr').value = '';
-  document.getElementById('newEmailImap').value = '';
-  document.getElementById('newEmailImapPort').value = '';
-  document.getElementById('newEmailSmtp').value = '';
-  document.getElementById('newEmailSmtpPort').value = '';
-  document.getElementById('newEmailPass').value = '';
-  renderEmailAccounts();
-  showNotification(t('E-Mail-Konto verknüpft!','Email account connected!'), 'success');
+  list.innerHTML = accs.map(a => {
+    const lastSync = a.last_sync_at ? new Date(a.last_sync_at).toLocaleString('de-DE') : 'noch nie';
+    const statusColor = a.status === 'error' ? 'color:var(--danger)' : 'color:var(--success)';
+    const statusText = a.status === 'error' ? ('Fehler: ' + (a.error_message || '')) : 'Verbunden';
+    return `
+      <div class="chat-account-item" style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:13px">${escHtml(a.label)} <span style="color:var(--text-light);font-weight:400">&lt;${escHtml(a.email)}&gt;</span></div>
+          <div style="font-size:11px;${statusColor}">${escHtml(statusText)}</div>
+          <div style="font-size:11px;color:var(--text-light)">Letzter Sync: ${lastSync}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-outline btn-sm" style="font-size:11px" onclick="syncOneAccount('${a.id}')">🔄 Sync</button>
+          <button class="btn btn-outline btn-sm" style="font-size:11px;color:var(--danger);border-color:var(--danger)" onclick="removeEmailAccount('${a.id}')">Trennen</button>
+        </div>
+      </div>`;
+  }).join('');
 }
 
-function removeEmailAccount(id) {
-  emailAccounts = emailAccounts.filter(a => a.id !== id);
-  renderEmailAccounts();
-  showNotification(t('E-Mail-Konto getrennt','Email account disconnected'), 'info');
+async function testEmailAccount() {
+  const form = readAccountForm();
+  const result = document.getElementById('newEmailTestResult');
+  if (!form.email || !form.imap_host || !form.smtp_host || !form.password) {
+    result.innerHTML = '<span style="color:var(--danger)">Bitte E-Mail, IMAP/SMTP und Passwort ausfüllen.</span>';
+    return;
+  }
+  result.innerHTML = '<span style="color:var(--text-light)">Teste Verbindung…</span>';
+  try {
+    const r = await apiFetch('/api/email/test', { method: 'POST', body: JSON.stringify(form) });
+    const imapOk = r.imap && r.imap.ok;
+    const smtpOk = r.smtp && r.smtp.ok;
+    result.innerHTML =
+      `<div style="color:${imapOk ? 'var(--success)' : 'var(--danger)'}">IMAP: ${imapOk ? 'OK' : 'FEHLER — ' + (r.imap && r.imap.error)}</div>` +
+      `<div style="color:${smtpOk ? 'var(--success)' : 'var(--danger)'}">SMTP: ${smtpOk ? 'OK' : 'FEHLER — ' + (r.smtp && r.smtp.error)}</div>`;
+  } catch (e) {
+    result.innerHTML = '<span style="color:var(--danger)">Verbindungstest fehlgeschlagen: ' + escHtml(e.message) + '</span>';
+  }
+}
+
+async function addEmailAccount() {
+  const form = readAccountForm();
+  if (!form.label || !form.email || !form.imap_host || !form.smtp_host || !form.password) {
+    showNotification('Bitte alle Pflichtfelder ausfüllen', 'warning');
+    return;
+  }
+  try {
+    await apiFetch('/api/email/accounts', { method: 'POST', body: JSON.stringify(form) });
+    ['newEmailLabel','newEmailAddr','newEmailUser','newEmailImap','newEmailImapPort','newEmailSmtp','newEmailSmtpPort','newEmailPass'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    document.getElementById('newEmailTestResult').innerHTML = '';
+    await loadEmailAccounts();
+    showNotification('E-Mail-Konto verknüpft! Starte Sync…', 'success');
+    // Auto-trigger first sync
+    const latest = (window._emailAccountsCache || [])[0];
+    if (latest) syncOneAccount(latest.id);
+  } catch (e) {
+    showNotification('Fehler: ' + e.message, 'warning');
+  }
+}
+
+async function removeEmailAccount(id) {
+  if (!confirm('Konto wirklich trennen? Alle synchronisierten E-Mails und Anhänge werden gelöscht.')) return;
+  try {
+    await apiFetch('/api/email/accounts?id=' + encodeURIComponent(id), { method: 'DELETE' });
+    await loadEmailAccounts();
+    await loadEmailsFromDb();
+    showNotification('Konto getrennt', 'info');
+  } catch (e) {
+    showNotification('Fehler: ' + e.message, 'warning');
+  }
+}
+
+async function syncOneAccount(accountId) {
+  const btn = document.getElementById('emailSyncBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Sync…'; }
+  try {
+    // Loop until done or 5 iterations max (guard)
+    for (let i = 0; i < 5; i++) {
+      const r = await apiFetch('/api/email/sync', { method: 'POST', body: JSON.stringify({ account_id: accountId, limit: 20 }) });
+      if (!r || r.done || r.fetched === 0) break;
+    }
+    await loadEmailAccounts();
+    await loadEmailsFromDb();
+    showNotification('Sync abgeschlossen', 'success');
+  } catch (e) {
+    showNotification('Sync-Fehler: ' + e.message, 'warning');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Sync'; }
+  }
+}
+
+async function syncAllEmailAccounts() {
+  const accs = window._emailAccountsCache || [];
+  if (!accs.length) { showNotification('Keine Konten verknüpft', 'info'); return; }
+  for (const a of accs) await syncOneAccount(a.id);
 }
 
 function updateChatsBadge() {
-  const unreadEmails = emailData.filter(e => e.unread).length;
+  const unreadEmails = (window._emailCache || []).filter(e => !e.is_read).length;
   const badge = document.getElementById('chatsBadge');
+  if (!badge) return;
   badge.textContent = unreadEmails;
   badge.style.display = unreadEmails > 0 ? '' : 'none';
 }
