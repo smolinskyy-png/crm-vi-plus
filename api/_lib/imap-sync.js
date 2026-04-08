@@ -314,4 +314,4 @@ async function markAccountError(accountId, message) {
   } catch (_) {}
 }
 
-module.exports = { syncAccount, markAccountError, buildImapConfig };
+module.exports = { syncAccount, markAccountError, buildImapConfig, discoverFolders, resolveFolderKey };

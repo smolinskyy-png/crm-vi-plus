@@ -2109,6 +2109,10 @@
   .email-item.unread .email-subject { font-weight:800;color:#1f1f1f; }
   .email-item.unread .email-sender { font-weight:800;color:#000; }
   .email-item.unread .email-sender::before { content:'';display:inline-block;width:9px;height:9px;border-radius:50%;background:#dc2626;margin-right:8px;vertical-align:middle;box-shadow:0 0 0 2px rgba(220,38,38,0.2); }
+  .email-row-actions { display:flex;align-items:center;opacity:0;transition:opacity 0.15s; }
+  .email-item:hover .email-row-actions { opacity:1; }
+  .email-row-action { background:transparent;border:1px solid var(--border);border-radius:6px;width:32px;height:32px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all 0.15s; }
+  .email-row-action:hover { background:#fff8e1;border-color:var(--gold); }
   .email-unread-badge { display:inline-block;background:#dc2626;color:white;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;margin-right:8px;vertical-align:middle;letter-spacing:0.3px; }
   .email-avatar { width:38px;height:38px;border-radius:50%;background:var(--primary);color:white;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0; }
   .email-content { flex:1;min-width:0; }
@@ -13450,6 +13454,10 @@ function renderEmailList() {
     const preview = (e.body_text || '').slice(0, 140).replace(/\s+/g, ' ');
     const prefix = isSent ? 'An: ' : '';
     const unreadTag = e.is_read ? '' : '<span class="email-unread-badge">NEU</span>';
+    const isTrash = (e.folder || '') === 'TRASH';
+    const actionBtn = isTrash
+      ? `<button class="email-row-action" title="In Posteingang verschieben" onclick="event.stopPropagation(); restoreEmail('${e.id}')">↩️</button>`
+      : `<button class="email-row-action" title="In Papierkorb verschieben" onclick="event.stopPropagation(); trashEmail('${e.id}')">🗑️</button>`;
     html += `
       <div class="email-item ${e.is_read ? '' : 'unread'}" onclick="openEmail('${e.id}')">
         <div class="email-avatar">${escHtml(initials)}</div>
@@ -13461,12 +13469,58 @@ function renderEmailList() {
           <div class="email-subject">${escHtml(e.subject || '(ohne Betreff)')}</div>
           <div class="email-preview">${escHtml(preview)}</div>
         </div>
+        <div class="email-row-actions">${actionBtn}</div>
       </div>`;
   }
   list.innerHTML = html;
 }
 
 function filterEmails(val) { window._emailFilter = val || ''; renderEmailList(); }
+
+async function moveEmailTo(emailId, targetFolder) {
+  const cache = window._emailCache || [];
+  const idx = cache.findIndex(x => x.id === emailId);
+  if (idx === -1) return;
+  const original = cache[idx];
+
+  // Optimistic UI: remove from current view immediately
+  cache.splice(idx, 1);
+  renderEmailList();
+  updateChatsBadge && updateChatsBadge();
+
+  try {
+    await apiFetch('/api/email/move', {
+      method: 'POST',
+      body: JSON.stringify({ email_id: emailId, target_folder: targetFolder })
+    });
+    // Update local copy with new folder & re-add (will be filtered out of current view)
+    original.folder = targetFolder;
+    cache.push(original);
+    const labelMap = { TRASH:'Papierkorb', INBOX:'Posteingang', ARCHIVE:'Archiv', SPAM:'Spam' };
+    showNotification('Verschoben nach ' + (labelMap[targetFolder] || targetFolder), 'success');
+  } catch (err) {
+    // Roll back on error
+    cache.push(original);
+    renderEmailList();
+    showNotification('Verschieben fehlgeschlagen: ' + err.message, 'warning');
+  }
+}
+
+function trashEmail(id) { return moveEmailTo(id, 'TRASH'); }
+function restoreEmail(id) { return moveEmailTo(id, 'INBOX'); }
+
+async function trashCurrentEmail() {
+  if (!selectedEmail) return;
+  const id = selectedEmail.id;
+  await moveEmailTo(id, 'TRASH');
+  closeEmail && closeEmail();
+}
+async function restoreCurrentEmail() {
+  if (!selectedEmail) return;
+  const id = selectedEmail.id;
+  await moveEmailTo(id, 'INBOX');
+  closeEmail && closeEmail();
+}
 
 let emailAttachments = [];
 
@@ -13549,6 +13603,10 @@ async function openEmail(id) {
         <button class="btn btn-outline btn-sm" onclick="emailAction('reply')" style="gap:6px">↩️ ${t('Antworten','Reply')}</button>
         <button class="btn btn-outline btn-sm" onclick="emailAction('replyAll')" style="gap:6px">↩️↩️ ${t('Allen antworten','Reply All')}</button>
         <button class="btn btn-outline btn-sm" onclick="emailAction('forward')" style="gap:6px">➡️ ${t('Weiterleiten','Forward')}</button>
+        ${(e.folder === 'TRASH')
+          ? `<button class="btn btn-outline btn-sm" onclick="restoreCurrentEmail()" style="gap:6px">↩️ ${t('Wiederherstellen','Restore')}</button>`
+          : `<button class="btn btn-outline btn-sm" onclick="trashCurrentEmail()" style="gap:6px;color:#dc2626;border-color:#fecaca">🗑️ ${t('Löschen','Delete')}</button>`
+        }
       </div>
 
       <div class="email-detail-body">${bodyHtml}</div>
