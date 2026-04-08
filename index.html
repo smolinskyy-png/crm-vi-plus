@@ -3303,11 +3303,18 @@
 
         <!-- TAB: E-Mails -->
         <div class="chat-tab-content active" id="chatTabEmails">
+          <!-- Prominente Sync-Leiste -->
+          <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;padding:12px 14px;background:linear-gradient(90deg,#eef2ff,#f5f3ff);border:1px solid #c7d2fe;border-radius:10px">
+            <div style="flex:1">
+              <div style="font-weight:700;font-size:13px;color:var(--primary)">E-Mail-Postfächer</div>
+              <div id="emailSyncStatusLine" style="font-size:11px;color:var(--text-light)">Noch nicht synchronisiert.</div>
+            </div>
+            <button class="btn btn-primary" onclick="syncAllEmailAccounts()" id="emailSyncBtn" style="font-size:13px">🔄 Jetzt synchronisieren</button>
+            <button class="btn btn-gold" onclick="openComposeEmail()" style="font-size:13px">✉️ Neue E-Mail</button>
+          </div>
           <div class="email-toolbar">
             <input class="email-search" type="text" placeholder="E-Mails durchsuchen..." oninput="filterEmails(this.value)">
             <select id="emailAccountFilter" onchange="renderEmailList()" style="padding:8px;border-radius:8px;border:1px solid var(--border);font-size:13px"><option value="">Alle Konten</option></select>
-            <button class="btn btn-primary btn-sm" onclick="syncAllEmailAccounts()" id="emailSyncBtn">🔄 Synchronisieren</button>
-            <button class="btn btn-gold btn-sm" onclick="openComposeEmail()">✉️ Neue E-Mail</button>
           </div>
           <div id="emailDetailView" style="display:none"></div>
           <div id="emailComposeView" style="display:none"></div>
@@ -3318,7 +3325,10 @@
         <div class="chat-tab-content" id="chatTabChatsettings">
           <div class="chat-settings-grid">
             <div class="chat-settings-card">
-              <h4>📧 E-Mail-Konten</h4>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                <h4 style="margin:0">📧 E-Mail-Konten</h4>
+                <button class="btn btn-primary btn-sm" onclick="syncAllEmailAccounts()" style="font-size:12px">🔄 Alle synchronisieren</button>
+              </div>
               <div id="emailAccountsList"></div>
               <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
                 <h4 style="font-size:13px;color:var(--text);margin-bottom:12px">Neues E-Mail-Konto verknüpfen</h4>
@@ -13076,9 +13086,13 @@ let emailAccounts = [];
 let selectedEmail = null;
 
 function renderChats() {
+  console.log('[CRM] renderChats called — build marker v3 email-integration');
   // Load accounts and mails from API/DB
   loadEmailAccounts().then(() => loadEmailsFromDb());
 }
+
+// One-time build marker so users can verify they have the latest code
+console.log('[CRM VI PLUS] Build: email-integration-v3 — IMAP/SMTP + Cron + inline errors');
 
 function switchChatTab(tab, btn) {
   document.querySelectorAll('#page-chats .chat-tab').forEach(t => t.classList.remove('active'));
