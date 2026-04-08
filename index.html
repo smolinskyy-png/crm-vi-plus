@@ -5144,18 +5144,18 @@
 const SUPABASE_URL = 'https://dihbhhkoocmvntbnxkts.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpaGJoaGtvb2Ntdm50Ym54a3RzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NDY4ODMsImV4cCI6MjA5MTIyMjg4M30.UKLOhZe4I4rFRC_BQPmmcZ0xggalZqtGIUYqeDJnFmw';
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUser = null;
 
 async function apiLogin(email, password) {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
   if (error) throw new Error(error.message);
   currentUser = data.user;
   return data;
 }
 
 async function apiRegister(name, email, password, role) {
-  const { data, error } = await supabase.auth.signUp({
+  const { data, error } = await sb.auth.signUp({
     email,
     password,
     options: { data: { name, role } }
@@ -5166,14 +5166,14 @@ async function apiRegister(name, email, password, role) {
 }
 
 async function apiLogout() {
-  await supabase.auth.signOut();
+  await sb.auth.signOut();
   currentUser = null;
 }
 
 async function apiLoadCrmData() {
   if (!currentUser) return null;
   try {
-    const { data, error } = await supabase
+    const { data, error } = await sb
       .from('crm_data')
       .select('data')
       .eq('user_id', currentUser.id)
@@ -5186,7 +5186,7 @@ async function apiLoadCrmData() {
 async function apiSaveCrmData(payload) {
   if (!currentUser) return;
   try {
-    const { error } = await supabase
+    const { error } = await sb
       .from('crm_data')
       .upsert({ user_id: currentUser.id, data: payload }, { onConflict: 'user_id' });
     if (error) console.warn('Supabase save error:', error);
@@ -5197,7 +5197,7 @@ async function apiSaveCrmData(payload) {
 async function uploadFileToStorage(file, path) {
   if (!currentUser) throw new Error('Not authenticated');
   const filePath = `${currentUser.id}/${path || file.name}`;
-  const { data, error } = await supabase.storage
+  const { data, error } = await sb.storage
     .from('crm-files')
     .upload(filePath, file, { upsert: true });
   if (error) throw error;
@@ -5205,7 +5205,7 @@ async function uploadFileToStorage(file, path) {
 }
 
 async function getFileUrl(path) {
-  const { data } = await supabase.storage
+  const { data } = await sb.storage
     .from('crm-files')
     .createSignedUrl(path, 3600);
   return data ? data.signedUrl : null;
@@ -13738,7 +13738,7 @@ document.addEventListener('DOMContentLoaded', function() {
   checkFollowUpReminders();
 
   // Check existing Supabase session (auto-login)
-  supabase.auth.getSession().then(async ({ data }) => {
+  sb.auth.getSession().then(async ({ data }) => {
     if (data.session) {
       currentUser = data.session.user;
       if (document.getElementById('loginEmail')) {
