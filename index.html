@@ -5679,10 +5679,28 @@ async function submitInviteUser() {
 
     if (error) throw error;
 
+    // Trigger auto-populates user_profiles, but we update invited_by/email to be safe
+    try {
+      if (data.user && data.user.id) {
+        await tempClient.from('user_profiles').update({
+          invited_by: currentUser ? currentUser.email : null,
+          email: email,
+          first_name: firstName,
+          last_name: lastName,
+          phone: phone || '',
+          role: roleMap[role],
+          status: 'invited'
+        }).eq('user_id', data.user.id);
+      }
+    } catch (upErr) { console.warn('user_profiles update:', upErr); }
+
+    // Refresh the list if we're on that page
+    if (typeof renderBenutzerList === 'function') renderBenutzerList();
+
     const result = document.getElementById('inviteResult');
     result.style.display = 'block';
     result.innerHTML = '<strong>✅ Einladung erstellt!</strong><br>' +
-      '<span style="color:var(--text-light)">Eine Bestätigungs-E-Mail wurde an <strong>' + email + '</strong> gesendet.</span><br><br>' +
+      '<span style="color:var(--text-light)">Der Benutzer <strong>' + email + '</strong> wurde angelegt.</span><br><br>' +
       '<div style="background:white;padding:8px;border-radius:6px;border:1px dashed var(--gold)">' +
       '<strong>Temporäres Passwort:</strong><br>' +
       '<code style="font-size:15px;color:var(--primary);user-select:all">' + tempPassword + '</code>' +
@@ -5736,6 +5754,49 @@ function checkProfileComplete() {
   }
 }
 
+async function renderBenutzerList() {
+  const tbody = document.getElementById('benutzerTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-light)">Lade…</td></tr>';
+  try {
+    const { data, error } = await sb
+      .from('user_profiles')
+      .select('*')
+      .order('invited_at', { ascending: false });
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-light)">Noch keine Benutzer — klicke auf "+ Benutzer einladen"</td></tr>';
+      return;
+    }
+    const roleLabels = { ADMIN: 'Admin', AGENT: 'Vertriebspartner', VIEWER: 'Kunde' };
+    const roleColors = {
+      ADMIN: 'background:#fef3c7;color:#92400e',
+      AGENT: 'background:#e0e7ff;color:#4338ca',
+      VIEWER: 'background:#dbeafe;color:#1e40af'
+    };
+    const statusColors = {
+      active: 'background:#d1fae5;color:#065f46',
+      invited: 'background:#fef3c7;color:#92400e'
+    };
+    const statusLabels = { active: 'Aktiv', invited: 'Eingeladen' };
+    tbody.innerHTML = data.map(u => {
+      const name = ((u.first_name || '') + ' ' + (u.last_name || '')).trim() || '—';
+      const role = u.role || 'AGENT';
+      const status = u.status || 'invited';
+      const joinedAt = u.invited_at ? new Date(u.invited_at).toLocaleDateString('de-DE') : '—';
+      return '<tr>' +
+        '<td><strong>' + name + '</strong>' + (u.phone ? '<br><small style="color:var(--text-light)">📞 ' + u.phone + '</small>' : '') + '</td>' +
+        '<td>' + (u.email || '—') + '</td>' +
+        '<td><span class="stage-badge" style="' + (roleColors[role] || '') + '">' + (roleLabels[role] || role) + '</span></td>' +
+        '<td><span class="stage-badge" style="' + (statusColors[status] || '') + '">' + (statusLabels[status] || status) + '</span></td>' +
+        '<td>' + joinedAt + '</td>' +
+        '</tr>';
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--danger)">Fehler: ' + (e.message || e) + '</td></tr>';
+  }
+}
+
 async function submitProfileComplete() {
   const firstName = document.getElementById('profileFirstName').value.trim();
   const lastName = document.getElementById('profileLastName').value.trim();
@@ -5769,11 +5830,28 @@ async function submitProfileComplete() {
     });
     if (error) throw error;
     currentUser = data.user;
+
+    // Sync to user_profiles table
+    try {
+      await sb.from('user_profiles').update({
+        first_name: firstName,
+        last_name: lastName,
+        phone: document.getElementById('profilePhone').value.trim(),
+        company_name: company,
+        company_street: street,
+        company_zip: zip,
+        company_city: city,
+        company_vat: document.getElementById('profileCompanyVat').value.trim(),
+        company_phone: document.getElementById('profileCompanyPhone').value.trim(),
+        status: 'active',
+        joined_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }).eq('user_id', currentUser.id);
+    } catch (e) { console.warn('user_profiles sync:', e); }
+
     document.getElementById('profileCompleteModal').classList.remove('active');
-    if (typeof document.getElementById('userName') !== 'undefined') {
-      const userNameEl = document.getElementById('userName');
-      if (userNameEl) userNameEl.textContent = firstName + ' ' + lastName;
-    }
+    const userNameEl = document.getElementById('userName');
+    if (userNameEl) userNameEl.textContent = firstName + ' ' + lastName;
     showNotification('Profil erfolgreich gespeichert!', 'success');
   } catch (e) {
     alert('Fehler: ' + (e.message || e));
@@ -6009,6 +6087,7 @@ function showPage(pageId, navItem) {
   if (pageId === 'wissen') { renderWissen(); }
   if (pageId === 'selbstauskunft') { populateSaLeadSelect(); updateSaProgress(); }
   if (pageId === 'bonitaet') { populateBonitaetLeadSelect(); }
+  if (pageId === 'benutzer') { renderBenutzerList(); }
   if (pageId === 'aufgaben') { renderAufgaben(); }
   if (pageId === 'vorlagen') { renderVorlagen(); }
   if (pageId === 'vergleich') { renderVergleich(); }
