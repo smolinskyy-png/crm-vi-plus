@@ -7551,11 +7551,12 @@ function renderFileList() {
       : f.size < 1048576 ? (f.size / 1024).toFixed(1) + ' KB'
       : (f.size / 1048576).toFixed(1) + ' MB';
 
+    const clickable = isPdf || (f.type && f.type.startsWith('image/'));
     return `
-      <div class="file-item" style="border-left:3px solid #10b981">
+      <div class="file-item" style="border-left:3px solid #10b981;${clickable ? 'cursor:pointer' : ''}" ${clickable ? `onclick="previewFile('${f.id}')"` : ''}>
         <div class="file-icon ${isPdf ? 'pdf' : 'png'}">${isPdf ? '📕' : '📄'}</div>
         <div class="file-info">
-          <div class="file-name">${f.name} <span style="background:#10b981;color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;margin-left:6px">✓ Gespeichert</span></div>
+          <div class="file-name">${f.name} <span style="background:#10b981;color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;margin-left:6px">✓ Gespeichert</span>${clickable ? ' <span style="background:#0ea5e9;color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;margin-left:4px">👁 Vorschau</span>' : ''}</div>
           <div class="file-meta">${sizeStr} · ${f.uploadDate}</div>
         </div>
         <div class="file-actions">
@@ -7565,6 +7566,57 @@ function renderFileList() {
       </div>
     `;
   }).join('');
+}
+
+function previewFile(fileId) {
+  if (!currentDetailLeadId) return;
+  const lead = leads.find(l => l.id === currentDetailLeadId);
+  if (!lead) return;
+  const file = lead.files.find(f => String(f.id) === String(fileId));
+  if (!file) return;
+  const isPdf = file.type === 'application/pdf';
+  const isImg = file.type && file.type.startsWith('image/');
+  if (!isPdf && !isImg) return;
+
+  let modal = document.getElementById('filePreviewModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'filePreviewModal';
+    modal.className = 'modal-overlay';
+    modal.style.zIndex = '6000';
+    modal.innerHTML = `
+      <div class="modal" style="width:1100px;max-width:95vw;height:90vh;display:flex;flex-direction:column;padding:0;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);background:var(--bg)">
+          <div id="filePreviewTitle" style="font-weight:600;font-size:15px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+          <div style="display:flex;gap:8px;flex-shrink:0">
+            <button id="filePreviewDownload" class="btn btn-secondary" style="padding:6px 14px;font-size:13px">⬇ Herunterladen</button>
+            <button onclick="closeFilePreview()" class="btn btn-secondary" style="padding:6px 14px;font-size:13px">✕ Schließen</button>
+          </div>
+        </div>
+        <div id="filePreviewBody" style="flex:1;overflow:auto;background:#1f2937;display:flex;align-items:center;justify-content:center"></div>
+      </div>
+    `;
+    modal.onclick = (e) => { if (e.target === modal) closeFilePreview(); };
+    document.body.appendChild(modal);
+  }
+  document.getElementById('filePreviewTitle').textContent = file.name;
+  const body = document.getElementById('filePreviewBody');
+  if (isPdf) {
+    body.innerHTML = `<iframe src="${file.data}" style="width:100%;height:100%;border:0;background:#fff"></iframe>`;
+  } else {
+    body.innerHTML = `<img src="${file.data}" style="max-width:100%;max-height:100%;object-fit:contain">`;
+  }
+  document.getElementById('filePreviewDownload').onclick = () => downloadFile(fileId);
+  modal.classList.add('active');
+}
+
+function closeFilePreview() {
+  const modal = document.getElementById('filePreviewModal');
+  if (modal) {
+    modal.classList.remove('active');
+    const body = document.getElementById('filePreviewBody');
+    if (body) body.innerHTML = '';
+  }
 }
 
 function downloadFile(fileId) {
