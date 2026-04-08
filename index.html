@@ -9329,29 +9329,48 @@ function processObjDokumente(files) {
       saved: false,
       uploading: true,
       storage_path: null,
+      data: null, // base64 fallback
       error: null
     };
     o.dokumente.push(dok);
     renderObjDokumente();
 
-    // Auto-save: upload to Supabase Storage in the background
-    (async () => {
+    // Read file -> base64, then upload via the server endpoint (admin client,
+    // bypasses storage RLS). Keep the base64 on the dok as a fallback so the
+    // file survives a reload even if the upload fails.
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+      const dataUrl = e.target.result || '';
+      dok.data = dataUrl;
+      const i = String(dataUrl).indexOf(',');
+      const b64 = i >= 0 ? String(dataUrl).slice(i + 1) : '';
       try {
-        const path = `objekte/${objId}/${dokId}_${file.name}`;
-        const storedPath = await uploadFileToStorage(file, path);
-        dok.storage_path = storedPath;
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const path = `objekte/${objId}/${dokId}_${safeName}`;
+        const r = await apiFetch('/api/files/upload', {
+          method: 'POST',
+          body: JSON.stringify({ path, content_b64: b64, content_type: file.type || 'application/octet-stream' })
+        });
+        dok.storage_path = (r && r.path) || null;
         dok.uploading = false;
-        dok.saved = true;
-        showNotification(file.name + ' gespeichert', 'success');
+        dok.saved = !!dok.storage_path;
+        if (dok.saved) {
+          // File is in storage -- drop the inline base64 to keep crm_data small
+          dok.data = null;
+          showNotification(file.name + ' gespeichert', 'success');
+        }
         crmDataChanged();
-      } catch (e) {
+      } catch (err) {
         dok.uploading = false;
         dok.saved = false;
-        dok.error = e.message || String(e);
-        showNotification('Fehler beim Speichern: ' + dok.error, 'warning');
+        dok.error = err.message || String(err);
+        console.error('upload failed', err);
+        showNotification('Upload fehlgeschlagen: ' + dok.error + ' (Datei lokal als Fallback gespeichert)', 'warning');
+        crmDataChanged();
       }
       renderObjDokumente();
-    })();
+    };
+    reader.readAsDataURL(file);
   });
 }
 
@@ -9409,8 +9428,8 @@ async function downloadObjDok(dokId) {
   if (!dok) return;
   if (dok.storage_path) {
     try {
-      const url = await getFileUrl(dok.storage_path);
-      if (url) { window.open(url, '_blank'); return; }
+      const r = await apiFetch('/api/files/sign?path=' + encodeURIComponent(dok.storage_path));
+      if (r && r.url) { window.open(r.url, '_blank'); return; }
     } catch (e) { console.warn('signed url failed', e); }
   }
   if (dok.data) {
@@ -9429,7 +9448,7 @@ async function removeObjDok(dokId) {
   // Delete from storage if uploaded
   if (dok.storage_path) {
     try {
-      await sb.storage.from('crm-files').remove([dok.storage_path]);
+      await apiFetch('/api/files/delete', { method: 'POST', body: JSON.stringify({ path: dok.storage_path }) });
     } catch (e) { console.warn('storage remove failed', e); }
   }
   o.dokumente = o.dokumente.filter(d => String(d.id) !== String(dokId));
