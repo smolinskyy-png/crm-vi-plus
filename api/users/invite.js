@@ -15,7 +15,7 @@ module.exports = async (req, res) => {
   try {
     const caller = await requireUser(req);
     const body = await readJson(req);
-    const { firstName, lastName, email, phone, role, redirect_to } = body || {};
+    const { firstName, lastName, email, phone, role, redirect_to, sender_name } = body || {};
     if (!firstName || !lastName || !email) {
       return json(res, 400, { error: 'firstName, lastName und email sind Pflicht' });
     }
@@ -95,7 +95,7 @@ module.exports = async (req, res) => {
     }
 
     // 4) Send a branded HTML welcome email via one of the caller's email accounts.
-    const transport = await buildTransportForUser(sb, caller.id);
+    const transport = await buildTransportForUser(sb, caller.id, sender_name);
     if (!transport) {
       return json(res, 200, {
         ok: true,
@@ -148,7 +148,8 @@ function randomTempPassword() {
   return p + '!9';
 }
 
-async function buildTransportForUser(sb, userId) {
+async function buildTransportForUser(sb, userId, senderNameOverride) {
+  const fmtFrom = (name, addr) => name ? `"${String(name).replace(/"/g, '\\"')}" <${addr}>` : addr;
   // 1) env fallback (preferred for system invites)
   if (process.env.INVITE_SMTP_HOST && process.env.INVITE_SMTP_USER && process.env.INVITE_SMTP_PASS) {
     const tx = nodemailer.createTransport({
@@ -158,9 +159,11 @@ async function buildTransportForUser(sb, userId) {
       auth: { user: process.env.INVITE_SMTP_USER, pass: process.env.INVITE_SMTP_PASS },
       tls: { rejectUnauthorized: false }
     });
+    const addr = process.env.INVITE_FROM || process.env.INVITE_SMTP_USER;
+    const name = senderNameOverride || process.env.INVITE_FROM_NAME || 'VertriebsImmo';
     return {
-      from: process.env.INVITE_FROM || process.env.INVITE_SMTP_USER,
-      fromName: process.env.INVITE_FROM_NAME || 'VertriebsImmo',
+      from: fmtFrom(name, addr),
+      fromName: name,
       sendMail: tx.sendMail.bind(tx)
     };
   }
@@ -181,9 +184,10 @@ async function buildTransportForUser(sb, userId) {
       auth: { user: acc.username, pass: decrypt(acc.password_encrypted) },
       tls: { rejectUnauthorized: false }
     });
+    const name = senderNameOverride || acc.from_name || acc.label || 'VertriebsImmo';
     return {
-      from: `${acc.label || 'VertriebsImmo'} <${acc.email}>`,
-      fromName: acc.label || 'VertriebsImmo',
+      from: fmtFrom(name, acc.email),
+      fromName: name,
       sendMail: tx.sendMail.bind(tx)
     };
   } catch (_) { return null; }

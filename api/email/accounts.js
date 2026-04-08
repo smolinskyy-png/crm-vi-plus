@@ -30,7 +30,7 @@ module.exports = async (req, res) => {
     if (req.method === 'POST') {
       const body = await readJson(req);
       const {
-        label, email, imap_host, imap_port, imap_secure,
+        label, from_name, email, imap_host, imap_port, imap_secure,
         smtp_host, smtp_port, smtp_secure, username, password
       } = body;
       if (!label || !email || !imap_host || !smtp_host || !username || !password) {
@@ -39,6 +39,7 @@ module.exports = async (req, res) => {
       const row = {
         user_id: user.id,
         label,
+        from_name: from_name || label,
         email,
         imap_host,
         imap_port: Number(imap_port) || 993,
@@ -51,6 +52,33 @@ module.exports = async (req, res) => {
         status: 'active'
       };
       const { data, error } = await sb.from('email_accounts').insert(row).select('*').single();
+      if (error) throw error;
+      return json(res, 200, { account: sanitize(data) });
+    }
+
+    if (req.method === 'PATCH' || req.method === 'PUT') {
+      const url = new URL(req.url, 'http://x');
+      const id = url.searchParams.get('id');
+      if (!id) return json(res, 400, { error: 'id required' });
+      const body = await readJson(req);
+      const allowed = ['label','from_name','email','imap_host','imap_port','imap_secure','smtp_host','smtp_port','smtp_secure','username'];
+      const patch = {};
+      for (const k of allowed) {
+        if (body[k] !== undefined) patch[k] = body[k];
+      }
+      if (patch.imap_port !== undefined) patch.imap_port = Number(patch.imap_port) || 993;
+      if (patch.smtp_port !== undefined) patch.smtp_port = Number(patch.smtp_port) || 587;
+      if (patch.imap_secure !== undefined) patch.imap_secure = patch.imap_secure !== false;
+      if (patch.smtp_secure !== undefined) patch.smtp_secure = !!patch.smtp_secure;
+      if (body.password) patch.password_encrypted = encrypt(body.password);
+      if (!Object.keys(patch).length) return json(res, 400, { error: 'no fields to update' });
+      const { data, error } = await sb
+        .from('email_accounts')
+        .update(patch)
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .select('*')
+        .single();
       if (error) throw error;
       return json(res, 200, { account: sanitize(data) });
     }

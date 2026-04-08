@@ -44,8 +44,9 @@ module.exports = async (req, res) => {
           }))
       : [];
 
+    const displayName = account.from_name || account.label || '';
     const info = await transporter.sendMail({
-      from: account.email,
+      from: displayName ? `"${displayName.replace(/"/g, '\\"')}" <${account.email}>` : account.email,
       to,
       cc: cc || undefined,
       bcc: bcc || undefined,
@@ -70,7 +71,7 @@ module.exports = async (req, res) => {
       references: Array.isArray(references) ? references : (references ? String(references).split(/\s+/).filter(Boolean) : null),
       subject,
       from_address: account.email,
-      from_name: account.label || '',
+      from_name: displayName,
       to_addresses: Array.isArray(to) ? to.map(a => ({ address: a })) : [{ address: to }],
       cc_addresses: cc ? (Array.isArray(cc) ? cc.map(a => ({ address: a })) : [{ address: cc }]) : null,
       bcc_addresses: bcc ? (Array.isArray(bcc) ? bcc.map(a => ({ address: a })) : [{ address: bcc }]) : null,

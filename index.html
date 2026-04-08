@@ -3376,6 +3376,10 @@
                   <input type="text" id="newEmailLabel" placeholder="Mein Postfach">
                 </div>
                 <div class="form-group" style="margin-bottom:12px">
+                  <label style="font-size:12px">Absendername (erscheint im Postfach des Empfängers)</label>
+                  <input type="text" id="newEmailFromName" placeholder="Max Mustermann">
+                </div>
+                <div class="form-group" style="margin-bottom:12px">
                   <label style="font-size:12px">E-Mail-Adresse</label>
                   <input type="email" id="newEmailAddr" placeholder="deine@email.de">
                 </div>
@@ -3835,6 +3839,10 @@
           <option value="kunde">Kunde</option>
         </select>
       </div>
+    </div>
+    <div class="form-group" style="margin-top:12px">
+      <label>Absendername (so erscheint die Willkommens-Mail beim Empfänger)</label>
+      <input type="text" id="inviteSenderName" placeholder="z.B. Max Mustermann | VertriebsImmo" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px">
     </div>
     <div id="inviteResult" style="display:none;margin-top:12px;padding:12px;background:#fef9ee;border:1px solid var(--gold);border-radius:8px;font-size:13px"></div>
     <div class="modal-actions">
@@ -5701,6 +5709,12 @@ function openInviteUserModal() {
   document.getElementById('inviteEmail').value = '';
   document.getElementById('invitePhone').value = '';
   document.getElementById('inviteRole').value = 'partner';
+  // Pre-fill sender name from first email account if available
+  const senderEl = document.getElementById('inviteSenderName');
+  if (senderEl) {
+    const firstAcc = (window._emailAccountsCache || [])[0];
+    senderEl.value = (firstAcc && (firstAcc.from_name || firstAcc.label)) || '';
+  }
   document.getElementById('inviteResult').style.display = 'none';
   document.getElementById('inviteResult').innerHTML = '';
   document.getElementById('inviteSubmitBtn').disabled = false;
@@ -5738,10 +5752,13 @@ async function submitInviteUser() {
   btn.textContent = 'Wird eingeladen...';
 
   try {
+    const senderEl = document.getElementById('inviteSenderName');
+    const sender_name = senderEl ? senderEl.value.trim() : '';
     const r = await apiFetch('/api/users/invite', {
       method: 'POST',
       body: JSON.stringify({
         firstName, lastName, email, phone, role,
+        sender_name: sender_name || undefined,
         redirect_to: window.location.origin + '/'
       })
     });
@@ -13960,8 +13977,10 @@ async function sendComposeEmail() {
 // ===== EMAIL ACCOUNT SETTINGS (API-backed) =====
 
 function readAccountForm() {
+  const fromNameEl = document.getElementById('newEmailFromName');
   return {
     label: document.getElementById('newEmailLabel').value.trim(),
+    from_name: fromNameEl ? fromNameEl.value.trim() : '',
     email: document.getElementById('newEmailAddr').value.trim(),
     username: document.getElementById('newEmailUser').value.trim() || document.getElementById('newEmailAddr').value.trim(),
     password: document.getElementById('newEmailPass').value,
@@ -14008,19 +14027,108 @@ function renderEmailAccounts() {
     const lastSync = a.last_sync_at ? new Date(a.last_sync_at).toLocaleString('de-DE') : 'noch nie';
     const statusColor = a.status === 'error' ? 'color:var(--danger)' : 'color:var(--success)';
     const statusText = a.status === 'error' ? ('Fehler: ' + (a.error_message || '')) : 'Verbunden';
+    const senderInfo = a.from_name ? `<div style="font-size:11px;color:var(--text-light)">Absender: <strong>${escHtml(a.from_name)}</strong> &lt;${escHtml(a.email)}&gt;</div>` : '';
     return `
       <div class="chat-account-item" style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
         <div style="flex:1">
           <div style="font-weight:600;font-size:13px">${escHtml(a.label)} <span style="color:var(--text-light);font-weight:400">&lt;${escHtml(a.email)}&gt;</span></div>
+          ${senderInfo}
           <div style="font-size:11px;${statusColor}">${escHtml(statusText)}</div>
           <div style="font-size:11px;color:var(--text-light)">Letzter Sync: ${lastSync}</div>
         </div>
         <div style="display:flex;gap:6px">
+          <button class="btn btn-outline btn-sm" style="font-size:11px" onclick="openEditEmailAccount('${a.id}')">✏️ Bearbeiten</button>
           <button class="btn btn-outline btn-sm" style="font-size:11px" onclick="syncOneAccount('${a.id}')">🔄 Sync</button>
           <button class="btn btn-outline btn-sm" style="font-size:11px;color:var(--danger);border-color:var(--danger)" onclick="removeEmailAccount('${a.id}')">Trennen</button>
         </div>
       </div>`;
   }).join('');
+}
+
+function openEditEmailAccount(id) {
+  const acc = (window._emailAccountsCache || []).find(a => a.id === id);
+  if (!acc) return;
+  let modal = document.getElementById('editEmailAccountModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'editEmailAccountModal';
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal" style="max-width:520px">
+        <div class="modal-header">
+          <h3>📧 E-Mail-Konto bearbeiten</h3>
+          <button class="modal-close" onclick="document.getElementById('editEmailAccountModal').classList.remove('active')">×</button>
+        </div>
+        <div class="modal-body" style="display:grid;gap:10px">
+          <input type="hidden" id="editAccId">
+          <div class="form-group"><label style="font-size:12px">Bezeichnung</label><input type="text" id="editAccLabel"></div>
+          <div class="form-group"><label style="font-size:12px">Absendername</label><input type="text" id="editAccFromName" placeholder="Max Mustermann"></div>
+          <div class="form-group"><label style="font-size:12px">E-Mail-Adresse</label><input type="email" id="editAccEmail"></div>
+          <div class="form-group"><label style="font-size:12px">Benutzername</label><input type="text" id="editAccUsername"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="form-group"><label style="font-size:12px">IMAP-Server</label><input type="text" id="editAccImapHost"></div>
+            <div class="form-group"><label style="font-size:12px">IMAP-Port</label><input type="text" id="editAccImapPort"></div>
+            <div class="form-group"><label style="font-size:12px">SMTP-Server</label><input type="text" id="editAccSmtpHost"></div>
+            <div class="form-group"><label style="font-size:12px">SMTP-Port</label><input type="text" id="editAccSmtpPort"></div>
+          </div>
+          <div style="display:flex;gap:14px;font-size:12px">
+            <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="editAccImapSecure"> IMAP SSL/TLS</label>
+            <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="editAccSmtpSecure"> SMTP SSL</label>
+          </div>
+          <div class="form-group">
+            <label style="font-size:12px">Neues Passwort (leer lassen, wenn unverändert)</label>
+            <input type="password" id="editAccPassword" placeholder="••••••••">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" onclick="document.getElementById('editEmailAccountModal').classList.remove('active')">Abbrechen</button>
+          <button class="btn btn-gold" onclick="saveEditEmailAccount()">Speichern</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  document.getElementById('editAccId').value = acc.id;
+  document.getElementById('editAccLabel').value = acc.label || '';
+  document.getElementById('editAccFromName').value = acc.from_name || '';
+  document.getElementById('editAccEmail').value = acc.email || '';
+  document.getElementById('editAccUsername').value = acc.username || '';
+  document.getElementById('editAccImapHost').value = acc.imap_host || '';
+  document.getElementById('editAccImapPort').value = acc.imap_port || '';
+  document.getElementById('editAccSmtpHost').value = acc.smtp_host || '';
+  document.getElementById('editAccSmtpPort').value = acc.smtp_port || '';
+  document.getElementById('editAccImapSecure').checked = acc.imap_secure !== false;
+  document.getElementById('editAccSmtpSecure').checked = !!acc.smtp_secure;
+  document.getElementById('editAccPassword').value = '';
+  modal.classList.add('active');
+}
+
+async function saveEditEmailAccount() {
+  const id = document.getElementById('editAccId').value;
+  const patch = {
+    label: document.getElementById('editAccLabel').value.trim(),
+    from_name: document.getElementById('editAccFromName').value.trim(),
+    email: document.getElementById('editAccEmail').value.trim(),
+    username: document.getElementById('editAccUsername').value.trim(),
+    imap_host: document.getElementById('editAccImapHost').value.trim(),
+    imap_port: document.getElementById('editAccImapPort').value.trim(),
+    smtp_host: document.getElementById('editAccSmtpHost').value.trim(),
+    smtp_port: document.getElementById('editAccSmtpPort').value.trim(),
+    imap_secure: document.getElementById('editAccImapSecure').checked,
+    smtp_secure: document.getElementById('editAccSmtpSecure').checked
+  };
+  const pwd = document.getElementById('editAccPassword').value;
+  if (pwd) patch.password = pwd;
+  try {
+    await apiFetch('/api/email/accounts?id=' + encodeURIComponent(id), {
+      method: 'PATCH',
+      body: JSON.stringify(patch)
+    });
+    document.getElementById('editEmailAccountModal').classList.remove('active');
+    await loadEmailAccounts();
+    showNotification('Konto aktualisiert', 'success');
+  } catch (e) {
+    showNotification('Fehler: ' + e.message, 'warning');
+  }
 }
 
 async function testEmailAccount() {
@@ -14055,7 +14163,7 @@ async function addEmailAccount() {
     console.log('[email] POST /api/email/accounts', { ...form, password: '***' });
     const r = await apiFetch('/api/email/accounts', { method: 'POST', body: JSON.stringify(form) });
     console.log('[email] saved account', r);
-    ['newEmailLabel','newEmailAddr','newEmailUser','newEmailImap','newEmailImapPort','newEmailSmtp','newEmailSmtpPort','newEmailPass'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    ['newEmailLabel','newEmailFromName','newEmailAddr','newEmailUser','newEmailImap','newEmailImapPort','newEmailSmtp','newEmailSmtpPort','newEmailPass'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     result.innerHTML = '<div style="padding:10px;background:#d1fae5;color:#065f46;border-radius:6px">✅ Konto gespeichert! Lade Liste und starte ersten Sync…</div>';
     await loadEmailAccounts();
     const latest = (window._emailAccountsCache || [])[0];
