@@ -9317,7 +9317,7 @@ function processObjDokumente(files) {
   const o = objekte.find(x => x.id === objId);
   if (!o) return;
   files.forEach(file => {
-    if (file.size > 10*1024*1024) { showNotification('Max 10 MB: ' + file.name, 'info'); return; }
+    if (file.size > 50*1024*1024) { showNotification('Max 50 MB: ' + file.name, 'info'); return; }
     const dokId = Date.now() + Math.random();
     const dok = {
       id: dokId,
@@ -9329,48 +9329,60 @@ function processObjDokumente(files) {
       saved: false,
       uploading: true,
       storage_path: null,
-      data: null, // base64 fallback
+      data: null, // base64 fallback for upload failures
       error: null
     };
     o.dokumente.push(dok);
     renderObjDokumente();
 
-    // Read file -> base64, then upload via the server endpoint (admin client,
-    // bypasses storage RLS). Keep the base64 on the dok as a fallback so the
-    // file survives a reload even if the upload fails.
-    const reader = new FileReader();
-    reader.onload = async function(e) {
-      const dataUrl = e.target.result || '';
-      dok.data = dataUrl;
-      const i = String(dataUrl).indexOf(',');
-      const b64 = i >= 0 ? String(dataUrl).slice(i + 1) : '';
+    (async () => {
       try {
+        // 1. Ask the server for a one-time signed upload URL (uses admin client,
+        //    bypasses storage RLS and avoids the Vercel 4.5 MB body limit).
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const path = `objekte/${objId}/${dokId}_${safeName}`;
-        const r = await apiFetch('/api/files/upload', {
+        const desiredPath = `objekte/${objId}/${dokId}_${safeName}`;
+        const signed = await apiFetch('/api/files/sign-upload', {
           method: 'POST',
-          body: JSON.stringify({ path, content_b64: b64, content_type: file.type || 'application/octet-stream' })
+          body: JSON.stringify({ path: desiredPath })
         });
-        dok.storage_path = (r && r.path) || null;
+        if (!signed || !signed.token || !signed.path) throw new Error('Kein Upload-Token erhalten');
+
+        // 2. Upload the file directly to Supabase Storage with that token.
+        const { error: upErr } = await sb.storage
+          .from('crm-files')
+          .uploadToSignedUrl(signed.path, signed.token, file, {
+            contentType: file.type || 'application/octet-stream',
+            upsert: true
+          });
+        if (upErr) throw upErr;
+
+        dok.storage_path = signed.path;
         dok.uploading = false;
-        dok.saved = !!dok.storage_path;
-        if (dok.saved) {
-          // File is in storage -- drop the inline base64 to keep crm_data small
-          dok.data = null;
-          showNotification(file.name + ' gespeichert', 'success');
-        }
+        dok.saved = true;
+        dok.data = null; // file is in storage, no need for base64
+        showNotification(file.name + ' gespeichert', 'success');
         crmDataChanged();
       } catch (err) {
+        // Upload failed — keep a base64 copy locally so it doesn't disappear
+        // on reload. Read the file once now if we haven't already.
+        try {
+          const dataUrl = await new Promise((resolve, reject) => {
+            const r = new FileReader();
+            r.onload = () => resolve(r.result || '');
+            r.onerror = reject;
+            r.readAsDataURL(file);
+          });
+          dok.data = dataUrl;
+        } catch (_) {}
         dok.uploading = false;
         dok.saved = false;
-        dok.error = err.message || String(err);
+        dok.error = (err && err.message) || String(err);
         console.error('upload failed', err);
-        showNotification('Upload fehlgeschlagen: ' + dok.error + ' (Datei lokal als Fallback gespeichert)', 'warning');
+        showNotification('Upload fehlgeschlagen: ' + dok.error, 'warning');
         crmDataChanged();
       }
       renderObjDokumente();
-    };
-    reader.readAsDataURL(file);
+    })();
   });
 }
 
