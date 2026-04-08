@@ -9,7 +9,7 @@
   "crons": [
     {
       "path": "/api/email/cron",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 0 * * *"
     }
   ],
   "rewrites": [
