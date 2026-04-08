@@ -2053,6 +2053,9 @@
   .cal-time-cell { padding:4px 8px;text-align:right;font-size:10px;color:var(--text-light);border-bottom:1px solid #f3f4f6;border-right:1px solid #f3f4f6;min-height:48px; }
   .cal-slot { position:relative;border-bottom:1px solid #f3f4f6;border-right:1px solid #f3f4f6;min-height:48px;cursor:pointer;transition:background .15s; }
   .cal-slot:hover { background:rgba(201,168,76,0.06); }
+  .cal-slot.cal-drop { background:rgba(201,168,76,0.22);box-shadow:inset 0 0 0 2px var(--gold); }
+  .cal-event[draggable="true"] { cursor:grab; }
+  .cal-event[draggable="true"]:active { cursor:grabbing; }
   .cal-event { position:absolute;left:2px;right:2px;border-radius:6px;padding:3px 6px;font-size:10px;line-height:1.3;overflow:hidden;cursor:pointer;z-index:2;transition:transform .15s,box-shadow .15s; }
   .cal-event:hover { transform:scale(1.03);box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:5; }
   .cal-event.besichtigung { background:linear-gradient(135deg,#dbeafe,#bfdbfe);border-left:3px solid #3b82f6;color:#1e40af; }
@@ -13578,6 +13581,62 @@ function setCalView(view) {
   renderCalendar();
 }
 
+// ---- Drag & Drop für Kalender-Events ----
+let _calDragId = null;
+function onCalEventDragStart(ev, id) {
+  ev.stopPropagation();
+  _calDragId = id;
+  try { ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', String(id)); } catch (_) {}
+  ev.currentTarget.style.opacity = '0.5';
+}
+function onCalEventDragEnd(ev) {
+  ev.currentTarget.style.opacity = '';
+  _calDragId = null;
+  document.querySelectorAll('.cal-slot.cal-drop').forEach(el => el.classList.remove('cal-drop'));
+}
+function onCalSlotDragOver(ev) {
+  if (_calDragId == null) return;
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  ev.currentTarget.classList.add('cal-drop');
+}
+function onCalSlotDragLeave(ev) {
+  ev.currentTarget.classList.remove('cal-drop');
+}
+function onCalSlotDrop(ev) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  ev.currentTarget.classList.remove('cal-drop');
+  const id = _calDragId != null ? _calDragId : parseInt(ev.dataTransfer.getData('text/plain'));
+  _calDragId = null;
+  if (!id && id !== 0) return;
+  const e = calEvents.find(x => x.id === id);
+  if (!e) return;
+  const slot = ev.currentTarget;
+  const newDate = slot.getAttribute('data-date');
+  const newHour = parseInt(slot.getAttribute('data-hour'));
+  if (!newDate || isNaN(newHour)) return;
+  // Snap auf 15 Minuten basierend auf Klick-Position innerhalb der Stunde (48px = 60min)
+  const rect = slot.getBoundingClientRect();
+  const offY = Math.max(0, Math.min(48, ev.clientY - rect.top));
+  const minutesInHour = Math.round((offY / 48) * 4) * 15; // 0,15,30,45
+  const newStartMin = newHour * 60 + minutesInHour;
+  // Dauer beibehalten
+  const [sh, sm] = e.start.split(':').map(Number);
+  const [eh, em] = e.end.split(':').map(Number);
+  const dur = (eh * 60 + em) - (sh * 60 + sm);
+  const newEndMin = newStartMin + (dur > 0 ? dur : 60);
+  const fmt = m => String(Math.floor(m/60)%24).padStart(2,'0') + ':' + String(m%60).padStart(2,'0');
+  e.date = newDate;
+  e.start = fmt(newStartMin);
+  e.end = fmt(newEndMin);
+  renderCalendar();
+  renderDashCalWidget();
+  crmDataChanged();
+  scheduleGoogleAutoSync();
+  showNotification(t('Termin verschoben auf','Moved to') + ' ' + fmtDateLocale(newDate) + ' ' + e.start, 'success');
+}
+
 function calNav(dir) {
   if (calView === 'week') { calCurrentDate.setDate(calCurrentDate.getDate() + dir * 7); }
   else { calCurrentDate.setMonth(calCurrentDate.getMonth() + dir); }
@@ -13636,7 +13695,7 @@ function renderCalWeek() {
     html += `<div class="cal-time-cell">${String(h).padStart(2,'0')}:00</div>`;
     days.forEach((d) => {
       const ds = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-      html += `<div class="cal-slot" onclick="openCalNewEvent('${ds}','${String(h).padStart(2,'0')}:00')">`;
+      html += `<div class="cal-slot" data-date="${ds}" data-hour="${h}" ondragover="onCalSlotDragOver(event)" ondragleave="onCalSlotDragLeave(event)" ondrop="onCalSlotDrop(event)" onclick="openCalNewEvent('${ds}','${String(h).padStart(2,'0')}:00')">`;
       // Find events in this hour slot
       calEvents.filter(e => e.date === ds).forEach(e => {
         const sh = parseInt(e.start.split(':')[0]);
@@ -13647,7 +13706,7 @@ function renderCalWeek() {
           const durMin = (eh * 60 + em) - (sh * 60 + sm);
           const topPx = (sm / 60) * 48;
           const heightPx = Math.max(20, (durMin / 60) * 48 - 2);
-          html += `<div class="cal-event ${e.type}" style="top:${topPx}px;height:${heightPx}px" onclick="event.stopPropagation();showCalDetail(${e.id})">
+          html += `<div class="cal-event ${e.type}" style="top:${topPx}px;height:${heightPx}px" draggable="true" data-event-id="${e.id}" ondragstart="onCalEventDragStart(event,${e.id})" ondragend="onCalEventDragEnd(event)" onclick="event.stopPropagation();showCalDetail(${e.id})" title="${t('Ziehen zum Verschieben','Drag to move')}">
             <strong>${e.start}</strong> ${e.title}
           </div>`;
         }
