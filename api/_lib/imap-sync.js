@@ -194,12 +194,19 @@ async function syncOneFolder(client, sb, account, folderKey, mailboxPath, waterm
         const from = parseFromAddress(parsed);
         const contactId = await findContactIdByEmail(sb, account.user_id, from.address);
 
+        // Normalize references header to a string[] of <message-ids>
+        let refs = null;
+        if (parsed.references) {
+          refs = Array.isArray(parsed.references) ? parsed.references : String(parsed.references).split(/\s+/).filter(Boolean);
+        }
         const row = {
           account_id: account.id,
           user_id: account.user_id,
           folder: folderKey,
           uid: uid,
           message_id: parsed.messageId || null,
+          in_reply_to: parsed.inReplyTo || null,
+          references: refs,
           subject: parsed.subject || '(ohne Betreff)',
           from_address: from.address,
           from_name: from.name,

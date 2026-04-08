@@ -13621,9 +13621,46 @@ async function openEmail(id) {
     if (/<html[^>]*>/i.test(html)) return html.replace(/<html[^>]*>/i, m => m + '<head>' + base + '</head>');
     return '<!doctype html><html><head>' + base + '</head><body>' + html + '</body></html>';
   };
-  const bodyHtml = e.body_html
-    ? `<iframe sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" style="width:100%;min-height:400px;border:none" srcdoc="${escHtml(injectBase(e.body_html)).replace(/"/g,'&quot;')}"></iframe>`
-    : `<div style="white-space:pre-wrap;font-family:inherit;line-height:1.6">${escHtml(e.body_text || '')}</div>`;
+  const renderBody = (m) => m.body_html
+    ? `<iframe sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" style="width:100%;min-height:300px;border:none" srcdoc="${escHtml(injectBase(m.body_html)).replace(/"/g,'&quot;')}"></iframe>`
+    : `<div style="white-space:pre-wrap;font-family:inherit;line-height:1.6">${escHtml(m.body_text || '')}</div>`;
+  const bodyHtml = renderBody(e);
+
+  // Fetch and render conversation thread (Outlook-style)
+  let threadHtml = '';
+  try {
+    const tr = await apiFetch('/api/email/thread?email_id=' + encodeURIComponent(e.id));
+    const thread = (tr && tr.thread) || [];
+    if (thread.length > 1) {
+      // Order newest → oldest like Outlook
+      thread.sort((a, b) => new Date(b.date_sent || 0) - new Date(a.date_sent || 0));
+      threadHtml = `
+        <div style="margin-top:24px;border-top:2px solid var(--border);padding-top:18px">
+          <div style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:12px">💬 ${t('Verlauf','Conversation')} (${thread.length})</div>
+          ${thread.map(m => {
+            const isCurrent = m.id === e.id;
+            const md = m.date_sent ? new Date(m.date_sent).toLocaleString('de-DE') : '';
+            const sender = (m.from_name || m.from_address || '—');
+            const folderTag = m.folder === 'SENT' ? '📤' : '📥';
+            return `
+              <div class="thread-item ${isCurrent ? 'thread-current' : ''}" style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;background:${isCurrent ? '#fff8e1' : '#fff'};overflow:hidden">
+                <div class="thread-head" style="padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:12px" onclick="toggleThreadItem('${m.id}')">
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:13px;font-weight:700;color:var(--text)">${folderTag} ${escHtml(sender)}</div>
+                    <div style="font-size:11px;color:var(--text-light);margin-top:2px">${md}</div>
+                  </div>
+                  <div style="font-size:11px;color:var(--text-light)">${isCurrent ? '▾' : '▸'}</div>
+                </div>
+                <div id="thread-body-${m.id}" class="thread-body" style="padding:0 14px 14px 14px;display:${isCurrent ? 'block' : 'none'}">
+                  ${renderBody(m)}
+                </div>
+              </div>`;
+          }).join('')}
+        </div>`;
+    }
+  } catch (err) {
+    console.warn('thread fetch failed', err.message);
+  }
 
   const attachmentsHtml = attachments.length
     ? `<div style="margin-top:14px;padding:12px;background:#f8f9fd;border-radius:8px">
@@ -13660,10 +13697,17 @@ async function openEmail(id) {
 
       <div class="email-detail-body">${bodyHtml}</div>
       ${attachmentsHtml}
+      ${threadHtml}
 
       <div id="emailActionArea" style="display:none"></div>
     </div>`;
   renderEmailList();
+}
+
+function toggleThreadItem(id) {
+  const body = document.getElementById('thread-body-' + id);
+  if (!body) return;
+  body.style.display = (body.style.display === 'none') ? 'block' : 'none';
 }
 
 async function downloadEmailAttachment(attId) {
@@ -13822,6 +13866,11 @@ async function sendEmailAction(action) {
         subject,
         text: body,
         in_reply_to: selectedEmail.message_id || undefined,
+        references: (() => {
+          const r = Array.isArray(selectedEmail.references) ? selectedEmail.references.slice() : [];
+          if (selectedEmail.message_id && !r.includes(selectedEmail.message_id)) r.push(selectedEmail.message_id);
+          return r.length ? r : undefined;
+        })(),
         attachments: attachmentsForSend()
       })
     });

@@ -66,6 +66,8 @@ module.exports = async (req, res) => {
       folder: 'SENT',
       uid: Math.floor(Date.now() / 1000), // synthetic uid for sent items
       message_id: info.messageId || null,
+      in_reply_to: in_reply_to || null,
+      references: Array.isArray(references) ? references : (references ? String(references).split(/\s+/).filter(Boolean) : null),
       subject,
       from_address: account.email,
       from_name: account.label || '',
