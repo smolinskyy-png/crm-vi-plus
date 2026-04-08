@@ -2390,6 +2390,7 @@
         <div class="user-name" id="userName">Oleh S.</div>
         <div class="user-role" id="userRole">Admin</div>
       </div>
+      <div class="logout-btn" onclick="resetCrmData()" title="Alle CRM-Daten löschen" style="background:rgba(245,158,11,0.15);border-color:rgba(245,158,11,0.3);margin-bottom:6px">🗑️ <span>CRM zurücksetzen</span></div>
       <div class="logout-btn" onclick="doLogout()" title="Abmelden">⏻ <span>Logout</span></div>
     </div>
   </nav>
@@ -5473,6 +5474,27 @@ async function doLogout() {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-dashboard').classList.add('active');
   document.getElementById('pageTitle').textContent = 'Dashboard';
+}
+
+async function resetCrmData() {
+  if (!currentUser) return;
+  const confirmed = confirm('⚠️ ACHTUNG: Alle deine CRM-Daten (Leads, Projekte, Termine, Aufgaben, etc.) werden permanent aus der Datenbank gelöscht. Diese Aktion kann NICHT rückgängig gemacht werden.\n\nWirklich fortfahren?');
+  if (!confirmed) return;
+  try {
+    const { error } = await sb.from('crm_data').delete().eq('user_id', currentUser.id);
+    if (error) { alert('Fehler beim Zurücksetzen: ' + error.message); return; }
+    // Clear all in-memory arrays
+    leads = []; finanzPartner = []; projekte = []; objekte = [];
+    emailVorlagen = []; textbausteine = []; aufgaben = [];
+    followUpRules = []; scoringRules = []; reservierungen = [];
+    newsArticles = []; dateiFolders = []; dateiFiles = [];
+    calEvents = []; emailData = []; emailAccounts = [];
+    crmNotifications = [];
+    // Reload page to show clean state
+    window.location.reload();
+  } catch (e) {
+    alert('Fehler: ' + e.message);
+  }
 }
 
 // ==================== LANGUAGE TOGGLE ====================
