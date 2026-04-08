@@ -13222,9 +13222,40 @@ let selectedEmail = null;
 
 function renderChats() {
   console.log('[CRM] renderChats called — build marker v3 email-integration');
-  // Load accounts and mails from API/DB
-  loadEmailAccounts().then(() => loadEmailsFromDb());
+  // 1) Instant render from localStorage cache so the inbox is never empty.
+  hydrateEmailCacheFromStorage();
+  renderEmailList();
+  updateChatsBadge();
+  // 2) Refresh from DB in the background.
+  loadEmailAccounts();
+  loadEmailsFromDb();
   startEmailAutoSync();
+}
+
+const EMAIL_CACHE_KEY = 'crm_email_cache_v1';
+
+function hydrateEmailCacheFromStorage() {
+  if (window._emailCache && window._emailCache.length) return;
+  try {
+    const raw = localStorage.getItem(EMAIL_CACHE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) window._emailCache = parsed;
+  } catch (_) {}
+}
+
+function persistEmailCacheToStorage() {
+  try {
+    const lite = (window._emailCache || []).slice(0, 300).map(e => ({
+      id: e.id, account_id: e.account_id, folder: e.folder, uid: e.uid,
+      subject: e.subject, from_address: e.from_address, from_name: e.from_name,
+      to_addresses: e.to_addresses, date_sent: e.date_sent, is_read: e.is_read,
+      has_attachments: e.has_attachments,
+      // Strip heavy body_html, keep short text preview only
+      body_text: (e.body_text || '').slice(0, 300)
+    }));
+    localStorage.setItem(EMAIL_CACHE_KEY, JSON.stringify(lite));
+  } catch (_) {}
 }
 
 // One-time build marker so users can verify they have the latest code
@@ -13352,6 +13383,7 @@ async function loadEmailsFromDb() {
     const { data, error } = await q;
     if (error) throw error;
     window._emailCache = data || [];
+    persistEmailCacheToStorage();
     renderEmailList();
     updateChatsBadge();
   } catch (e) {
@@ -13525,8 +13557,17 @@ async function restoreCurrentEmail() {
 let emailAttachments = [];
 
 async function openEmail(id) {
-  const e = (window._emailCache || []).find(x => x.id === id);
+  const cache = window._emailCache || [];
+  const idx = cache.findIndex(x => x.id === id);
+  let e = idx !== -1 ? cache[idx] : null;
   if (!e) return;
+  // If we only have a lite cached row (no body_html), fetch the full row first.
+  if (e.body_html === undefined) {
+    try {
+      const { data: full } = await sb.from('emails').select('*').eq('id', id).single();
+      if (full) { e = Object.assign({}, e, full); cache[idx] = e; }
+    } catch (_) {}
+  }
   selectedEmail = e;
   emailAttachments = [];
   document.getElementById('emailList').style.display = 'none';
@@ -13572,8 +13613,16 @@ async function openEmail(id) {
   const dateStr = d ? d.toLocaleString('de-DE') : '';
   const fromDisplay = (e.from_name ? e.from_name + ' ' : '') + '<' + (e.from_address || '') + '>';
   const toDisplay = Array.isArray(e.to_addresses) ? e.to_addresses.map(a => a.address || a).join(', ') : '';
+  // Inject <base target="_blank"> so all links inside the email open in a new tab.
+  // sandbox="allow-popups allow-popups-to-escape-sandbox" lets the new tab actually open.
+  const injectBase = (html) => {
+    const base = '<base target="_blank">';
+    if (/<head[^>]*>/i.test(html)) return html.replace(/<head[^>]*>/i, m => m + base);
+    if (/<html[^>]*>/i.test(html)) return html.replace(/<html[^>]*>/i, m => m + '<head>' + base + '</head>');
+    return '<!doctype html><html><head>' + base + '</head><body>' + html + '</body></html>';
+  };
   const bodyHtml = e.body_html
-    ? `<iframe sandbox="allow-same-origin" style="width:100%;min-height:400px;border:none" srcdoc="${escHtml(e.body_html).replace(/"/g,'&quot;')}"></iframe>`
+    ? `<iframe sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" style="width:100%;min-height:400px;border:none" srcdoc="${escHtml(injectBase(e.body_html)).replace(/"/g,'&quot;')}"></iframe>`
     : `<div style="white-space:pre-wrap;font-family:inherit;line-height:1.6">${escHtml(e.body_text || '')}</div>`;
 
   const attachmentsHtml = attachments.length
