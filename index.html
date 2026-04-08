@@ -1358,6 +1358,11 @@
     background: rgba(201,168,76,0.04);
   }
 
+  #pDetailTitelbildWrap.drag-over {
+    border-color: var(--gold) !important;
+    box-shadow: 0 0 0 3px rgba(201,168,76,0.35);
+  }
+
   .file-upload-zone .upload-icon {
     font-size: 32px;
     margin-bottom: 8px;
@@ -5181,10 +5186,11 @@
     </div>
 
     <div id="pDetailTitelbildWrap"
-         ondragover="event.preventDefault();this.classList.add('drag-over')"
-         ondragleave="this.classList.remove('drag-over')"
+         ondragover="event.preventDefault();event.stopPropagation();this.classList.add('drag-over');const h=this.querySelector('.pTitelbildDropHint');if(h)h.style.display='flex'"
+         ondragenter="event.preventDefault();this.classList.add('drag-over');const h=this.querySelector('.pTitelbildDropHint');if(h)h.style.display='flex'"
+         ondragleave="if(event.target===this||!this.contains(event.relatedTarget)){this.classList.remove('drag-over');const h=this.querySelector('.pTitelbildDropHint');if(h)h.style.display='none'}"
          ondrop="handlePDetailTitelbildDrop(event)"
-         style="display:none;margin-bottom:16px;position:relative;border-radius:12px;overflow:hidden;border:1px solid var(--border)"></div>
+         style="display:none;margin-bottom:16px;position:relative;border-radius:12px;overflow:hidden;border:1px solid var(--border);transition:box-shadow .15s, border-color .15s"></div>
     <input type="file" id="pDetailTitelbildInput" accept="image/*" style="display:none" onchange="handlePDetailTitelbildSelect(event)">
 
     <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center" id="pDetailTabs">
@@ -10826,20 +10832,27 @@ function renderPDetailTitelbild() {
   if (!p) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
   const isAdmin = document.getElementById('userRole').textContent === 'Admin';
   if (!p.titelbild && !isAdmin) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+  // Drag-over Overlay, damit Drop auch über dem Bild visuell bestätigt wird
+  const dragOverlay = isAdmin
+    ? `<div class="pTitelbildDropHint" style="position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(201,168,76,.85);color:white;font-weight:700;font-size:16px;letter-spacing:.3px;pointer-events:none;z-index:2">⬇ Titelbild hier ablegen</div>`
+    : '';
   if (p.titelbild) {
     wrap.style.display = 'block';
-    wrap.innerHTML = `<img src="${p.titelbild}" style="width:100%;display:block;max-height:280px;object-fit:cover">
-      ${isAdmin ? `<div style="position:absolute;top:8px;right:8px;display:flex;gap:6px">
+    wrap.style.border = '1px solid var(--border)';
+    wrap.innerHTML = `<img src="${p.titelbild}" style="width:100%;display:block;max-height:280px;object-fit:cover;pointer-events:none">
+      ${isAdmin ? `<div style="position:absolute;top:8px;right:8px;display:flex;gap:6px;z-index:3">
         <button type="button" class="btn btn-outline btn-sm" style="background:rgba(0,0,0,.55);color:white;border-color:rgba(255,255,255,.5)" onclick="document.getElementById('pDetailTitelbildInput').click()">🖼️ Ändern</button>
         <button type="button" class="btn btn-outline btn-sm" style="background:rgba(0,0,0,.55);color:#fca5a5;border-color:#fca5a5" onclick="removeProjektTitelbild()">✕ Entfernen</button>
-      </div>` : ''}`;
+      </div>
+      <div style="position:absolute;left:0;right:0;bottom:0;padding:6px 10px;background:linear-gradient(transparent,rgba(0,0,0,.55));color:white;font-size:11px;text-align:center;pointer-events:none">Neues Bild hierher ziehen, um zu ersetzen</div>` : ''}
+      ${dragOverlay}`;
   } else {
     // Admin ohne Titelbild → Upload-Zone
     wrap.style.display = 'block';
     wrap.style.border = '2px dashed var(--border)';
-    wrap.innerHTML = `<div onclick="document.getElementById('pDetailTitelbildInput').click()" style="padding:28px;text-align:center;cursor:pointer;color:var(--text-light)">
+    wrap.innerHTML = `<div onclick="document.getElementById('pDetailTitelbildInput').click()" style="padding:28px;text-align:center;cursor:pointer;color:var(--text-light);pointer-events:auto">
       <div style="font-size:32px;margin-bottom:6px">🖼️</div>
-      <div style="font-weight:600;color:var(--text)">Titelbild hochladen</div>
+      <div style="font-weight:600;color:var(--text)">Titelbild hochladen oder hierher ziehen</div>
       <div style="font-size:12px;margin-top:4px">Wird auf der Projektseite angezeigt</div>
     </div>`;
   }
@@ -10853,7 +10866,11 @@ function handlePDetailTitelbildSelect(event) {
 
 function handlePDetailTitelbildDrop(event) {
   event.preventDefault();
-  event.currentTarget.classList.remove('drag-over');
+  event.stopPropagation();
+  const wrap = event.currentTarget;
+  wrap.classList.remove('drag-over');
+  const h = wrap.querySelector('.pTitelbildDropHint');
+  if (h) h.style.display = 'none';
   // Admin-Schutz: VP soll keine Titelbilder ablegen
   if (document.getElementById('userRole').textContent !== 'Admin') return;
   const f = event.dataTransfer.files && event.dataTransfer.files[0];
