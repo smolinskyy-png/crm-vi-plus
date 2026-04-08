@@ -2113,6 +2113,27 @@
   .email-item:hover .email-row-actions { opacity:1; }
   .email-row-action { background:transparent;border:1px solid var(--border);border-radius:6px;width:32px;height:32px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all 0.15s; }
   .email-row-action:hover { background:#fff8e1;border-color:var(--gold); }
+  .email-acc-card { background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 2px rgba(15,23,42,0.04);transition:box-shadow 0.15s; }
+  .email-acc-card:hover { box-shadow:0 4px 12px rgba(15,23,42,0.06); }
+  .email-acc-top { display:flex;align-items:center;gap:12px;margin-bottom:10px; }
+  .email-acc-avatar { width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--gold) 0%,#b8941f 100%);color:#0f172a;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;flex-shrink:0; }
+  .email-acc-meta { flex:1;min-width:0; }
+  .email-acc-label { font-size:14px;font-weight:700;color:var(--text);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+  .email-acc-email { font-size:12px;color:var(--text-light);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+  .email-acc-tag { display:inline-block;font-size:10px;font-weight:600;color:var(--text-light);background:#f1f5f9;padding:2px 8px;border-radius:10px;margin-top:4px; }
+  .email-acc-status { display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-light);padding:8px 0;border-top:1px dashed var(--border);border-bottom:1px dashed var(--border);margin-bottom:10px;flex-wrap:wrap; }
+  .email-acc-dot { width:8px;height:8px;border-radius:50%;display:inline-block;box-shadow:0 0 0 2px rgba(0,0,0,0.04); }
+  .email-acc-status-ok { color:#059669;font-weight:600; }
+  .email-acc-status-err { color:#dc2626;font-weight:600; }
+  .email-acc-sep { color:#cbd5e1; }
+  .email-acc-sync { color:var(--text-light); }
+  .email-acc-actions { display:flex;gap:8px;flex-wrap:wrap; }
+  .email-acc-btn { flex:1;min-width:90px;padding:8px 12px;font-size:12px;font-weight:600;background:#fff;border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:all 0.15s;color:var(--text); }
+  .email-acc-btn:hover { background:#f8fafc;border-color:#94a3b8; }
+  .email-acc-btn-edit { background:#fef9ee;border-color:var(--gold);color:#92400e; }
+  .email-acc-btn-edit:hover { background:#fef3c7; }
+  .email-acc-btn-danger { color:#dc2626;border-color:#fecaca; }
+  .email-acc-btn-danger:hover { background:#fef2f2;border-color:#dc2626; }
   .email-unread-badge { display:inline-block;background:#dc2626;color:white;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;margin-right:8px;vertical-align:middle;letter-spacing:0.3px; }
   .email-avatar { width:38px;height:38px;border-radius:50%;background:var(--primary);color:white;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0; }
   .email-content { flex:1;min-width:0; }
@@ -3804,6 +3825,26 @@
       <button class="btn btn-outline btn-sm" style="padding:4px 10px" onclick="document.getElementById('benutzerDetailModal').classList.remove('active')">✕</button>
     </div>
     <div id="benutzerDetailBody" style="font-size:14px"></div>
+    <div id="benutzerDetailAdminActions" style="display:none;margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
+      <div style="font-size:12px;color:var(--text-light);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Admin-Aktionen</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button id="benutzerLockBtn" class="btn btn-outline btn-sm" onclick="confirmToggleUserLock()">🔒 Sperren</button>
+        <button class="btn btn-outline btn-sm" style="color:#dc2626;border-color:#fecaca" onclick="confirmDeleteUser()">🗑 Benutzer löschen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Confirm Admin Action -->
+<div class="modal-overlay" id="adminConfirmModal">
+  <div class="modal" style="max-width:440px">
+    <h3 id="adminConfirmTitle" style="margin-bottom:8px">Aktion bestätigen</h3>
+    <p id="adminConfirmText" style="font-size:14px;color:var(--text-light);margin-bottom:18px"></p>
+    <div id="adminConfirmExtra"></div>
+    <div class="modal-actions" style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="document.getElementById('adminConfirmModal').classList.remove('active')">Abbrechen</button>
+      <button id="adminConfirmOkBtn" class="btn btn-gold">Bestätigen</button>
+    </div>
   </div>
 </div>
 
@@ -5850,9 +5891,10 @@ async function renderBenutzerList() {
     };
     const statusColors = {
       active: 'background:#d1fae5;color:#065f46',
-      invited: 'background:#fef3c7;color:#92400e'
+      invited: 'background:#fef3c7;color:#92400e',
+      locked: 'background:#fee2e2;color:#991b1b'
     };
-    const statusLabels = { active: 'Aktiv', invited: 'Eingeladen' };
+    const statusLabels = { active: 'Aktiv', invited: 'Eingeladen', locked: 'Gesperrt' };
     window._benutzerCache = {};
     tbody.innerHTML = data.map(u => {
       window._benutzerCache[u.id] = u;
@@ -5925,7 +5967,100 @@ function openBenutzerDetail(profileId) {
   html += row('Beigetreten am', fmtDate(u.joined_at));
 
   document.getElementById('benutzerDetailBody').innerHTML = html;
+
+  // Show admin actions if current user is admin and not viewing themselves
+  const meta = (currentUser && currentUser.user_metadata) || {};
+  const callerRole = meta.role || '';
+  const isAdmin = callerRole === 'ADMIN' || (document.getElementById('userRole') && document.getElementById('userRole').textContent === 'Admin');
+  const isSelf = currentUser && (currentUser.id === u.user_id || (currentUser.email || '').toLowerCase() === (u.email || '').toLowerCase());
+  const adminBox = document.getElementById('benutzerDetailAdminActions');
+  if (adminBox) {
+    if (isAdmin && !isSelf) {
+      adminBox.style.display = 'block';
+      adminBox.dataset.userId = u.user_id || '';
+      adminBox.dataset.profileId = u.id || '';
+      adminBox.dataset.email = u.email || '';
+      adminBox.dataset.locked = (u.status === 'locked') ? '1' : '0';
+      const lockBtn = document.getElementById('benutzerLockBtn');
+      if (lockBtn) lockBtn.textContent = (u.status === 'locked') ? '🔓 Entsperren' : '🔒 Sperren';
+    } else {
+      adminBox.style.display = 'none';
+    }
+  }
+
   document.getElementById('benutzerDetailModal').classList.add('active');
+}
+
+function showAdminConfirm({ title, text, okLabel, okClass, requireType, onConfirm }) {
+  const modal = document.getElementById('adminConfirmModal');
+  document.getElementById('adminConfirmTitle').textContent = title;
+  document.getElementById('adminConfirmText').textContent = text;
+  const extra = document.getElementById('adminConfirmExtra');
+  extra.innerHTML = requireType
+    ? `<div style="margin-bottom:14px"><label style="font-size:12px;color:var(--text-light)">Tippe <strong>${requireType}</strong> zum Bestätigen</label><input id="adminConfirmInput" type="text" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;margin-top:6px"></div>`
+    : '';
+  const btn = document.getElementById('adminConfirmOkBtn');
+  btn.textContent = okLabel || 'Bestätigen';
+  btn.className = 'btn ' + (okClass || 'btn-gold');
+  btn.onclick = async () => {
+    if (requireType) {
+      const v = (document.getElementById('adminConfirmInput').value || '').trim();
+      if (v !== requireType) { showNotification('Bestätigung passt nicht', 'warning'); return; }
+    }
+    btn.disabled = true;
+    try { await onConfirm(); modal.classList.remove('active'); }
+    catch (e) { showNotification('Fehler: ' + (e.message || e), 'warning'); }
+    finally { btn.disabled = false; }
+  };
+  modal.classList.add('active');
+  if (requireType) setTimeout(() => { const i = document.getElementById('adminConfirmInput'); if (i) i.focus(); }, 50);
+}
+
+function confirmToggleUserLock() {
+  const box = document.getElementById('benutzerDetailAdminActions');
+  if (!box) return;
+  const userId = box.dataset.userId;
+  const email = box.dataset.email;
+  const locked = box.dataset.locked === '1';
+  showAdminConfirm({
+    title: locked ? 'Benutzer entsperren?' : 'Benutzer sperren?',
+    text: locked
+      ? `${email} kann sich danach wieder anmelden.`
+      : `${email} kann sich danach NICHT mehr anmelden, bis du ihn wieder entsperrst.`,
+    okLabel: locked ? '🔓 Entsperren' : '🔒 Sperren',
+    onConfirm: async () => {
+      await apiFetch('/api/users/admin', {
+        method: 'POST',
+        body: JSON.stringify({ action: locked ? 'unlock' : 'lock', user_id: userId })
+      });
+      showNotification(locked ? 'Benutzer entsperrt' : 'Benutzer gesperrt', 'success');
+      document.getElementById('benutzerDetailModal').classList.remove('active');
+      if (typeof renderBenutzerList === 'function') renderBenutzerList();
+    }
+  });
+}
+
+function confirmDeleteUser() {
+  const box = document.getElementById('benutzerDetailAdminActions');
+  if (!box) return;
+  const userId = box.dataset.userId;
+  const email = box.dataset.email;
+  showAdminConfirm({
+    title: 'Benutzer endgültig löschen?',
+    text: `${email} wird komplett aus dem System entfernt. Diese Aktion kann nicht rückgängig gemacht werden.`,
+    okLabel: '🗑 Endgültig löschen',
+    okClass: 'btn-outline',
+    requireType: 'LÖSCHEN',
+    onConfirm: async () => {
+      await apiFetch('/api/users/admin', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'delete', user_id: userId })
+      });
+      showNotification('Benutzer gelöscht', 'success');
+      document.getElementById('benutzerDetailModal').classList.remove('active');
+      if (typeof renderBenutzerList === 'function') renderBenutzerList();
+    }
+  });
 }
 
 async function submitProfileComplete() {
@@ -14025,21 +14160,30 @@ function renderEmailAccounts() {
   }
   list.innerHTML = accs.map(a => {
     const lastSync = a.last_sync_at ? new Date(a.last_sync_at).toLocaleString('de-DE') : 'noch nie';
-    const statusColor = a.status === 'error' ? 'color:var(--danger)' : 'color:var(--success)';
-    const statusText = a.status === 'error' ? ('Fehler: ' + (a.error_message || '')) : 'Verbunden';
-    const senderInfo = a.from_name ? `<div style="font-size:11px;color:var(--text-light)">Absender: <strong>${escHtml(a.from_name)}</strong> &lt;${escHtml(a.email)}&gt;</div>` : '';
+    const isError = a.status === 'error';
+    const dotColor = isError ? '#dc2626' : '#10b981';
+    const statusText = isError ? ('Fehler: ' + (a.error_message || '')) : 'Verbunden';
+    const initial = ((a.from_name || a.label || a.email || '?').trim().charAt(0) || '?').toUpperCase();
     return `
-      <div class="chat-account-item" style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
-        <div style="flex:1">
-          <div style="font-weight:600;font-size:13px">${escHtml(a.label)} <span style="color:var(--text-light);font-weight:400">&lt;${escHtml(a.email)}&gt;</span></div>
-          ${senderInfo}
-          <div style="font-size:11px;${statusColor}">${escHtml(statusText)}</div>
-          <div style="font-size:11px;color:var(--text-light)">Letzter Sync: ${lastSync}</div>
+      <div class="email-acc-card">
+        <div class="email-acc-top">
+          <div class="email-acc-avatar">${escHtml(initial)}</div>
+          <div class="email-acc-meta">
+            <div class="email-acc-label">${escHtml(a.from_name || a.label)}</div>
+            <div class="email-acc-email">${escHtml(a.email)}</div>
+            ${a.from_name && a.label && a.from_name !== a.label ? `<div class="email-acc-tag">${escHtml(a.label)}</div>` : ''}
+          </div>
         </div>
-        <div style="display:flex;gap:6px">
-          <button class="btn btn-outline btn-sm" style="font-size:11px" onclick="openEditEmailAccount('${a.id}')">✏️ Bearbeiten</button>
-          <button class="btn btn-outline btn-sm" style="font-size:11px" onclick="syncOneAccount('${a.id}')">🔄 Sync</button>
-          <button class="btn btn-outline btn-sm" style="font-size:11px;color:var(--danger);border-color:var(--danger)" onclick="removeEmailAccount('${a.id}')">Trennen</button>
+        <div class="email-acc-status">
+          <span class="email-acc-dot" style="background:${dotColor}"></span>
+          <span class="${isError ? 'email-acc-status-err' : 'email-acc-status-ok'}">${escHtml(statusText)}</span>
+          <span class="email-acc-sep">·</span>
+          <span class="email-acc-sync">Letzter Sync: ${lastSync}</span>
+        </div>
+        <div class="email-acc-actions">
+          <button class="email-acc-btn email-acc-btn-edit" onclick="openEditEmailAccount('${a.id}')">✏️ Bearbeiten</button>
+          <button class="email-acc-btn" onclick="syncOneAccount('${a.id}')">🔄 Sync</button>
+          <button class="email-acc-btn email-acc-btn-danger" onclick="removeEmailAccount('${a.id}')">🗑 Trennen</button>
         </div>
       </div>`;
   }).join('');
