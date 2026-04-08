@@ -141,6 +141,11 @@ function listEvents(accessToken, calendarId, params = {}) {
   return gcalRequest(accessToken, '/calendars/' + encodeURIComponent(calendarId) + '/events?' + sp.toString());
 }
 
+// Liste aller dem User zugänglichen Kalender (eigene + Abos wie iCloud-ICS)
+function listCalendars(accessToken) {
+  return gcalRequest(accessToken, '/users/me/calendarList?minAccessRole=reader&maxResults=250');
+}
+
 function insertEvent(accessToken, calendarId, body) {
   return gcalRequest(accessToken, '/calendars/' + encodeURIComponent(calendarId) + '/events', {
     method: 'POST', body
@@ -180,24 +185,52 @@ function crmEventToGoogleBody(e, tz = 'Europe/Berlin') {
   };
 }
 
+// Formats a JS Date as YYYY-MM-DD / HH:MM in a fixed IANA timezone.
+// Vercel-Lambdas laufen in UTC, deshalb dürfen wir nicht Date.getHours()
+// nutzen — sonst landen Berlin-Termine 2h früher im CRM.
+function formatInTz(date, tz) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: tz,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  }).formatToParts(date).reduce((acc, p) => { acc[p.type] = p.value; return acc; }, {});
+  // Intl liefert "24" statt "00" für Mitternacht
+  if (parts.hour === '24') parts.hour = '00';
+  return {
+    date: parts.year + '-' + parts.month + '-' + parts.day,
+    time: parts.hour + ':' + parts.minute
+  };
+}
+
 // Turns a Google Calendar event into a CRM calendar event
-function googleEventToCrm(ge) {
+function googleEventToCrm(ge, tz = 'Europe/Berlin') {
   const startRaw = (ge.start && (ge.start.dateTime || ge.start.date)) || null;
   const endRaw   = (ge.end && (ge.end.dateTime || ge.end.date)) || null;
   if (!startRaw) return null;
+  const isAllDay = !!(ge.start && ge.start.date && !ge.start.dateTime);
   const startDate = new Date(startRaw);
   const endDate = endRaw ? new Date(endRaw) : new Date(startDate.getTime() + 60 * 60 * 1000);
-  const pad = n => String(n).padStart(2, '0');
-  const ymd = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-  const hm  = d => pad(d.getHours()) + ':' + pad(d.getMinutes());
+  let dateStr, startStr, endStr;
+  if (isAllDay) {
+    // Ganztägige Events: Date kommt als YYYY-MM-DD ohne Uhrzeit
+    dateStr = startRaw;
+    startStr = '00:00';
+    endStr = '23:59';
+  } else {
+    const s = formatInTz(startDate, tz);
+    const e = formatInTz(endDate, tz);
+    dateStr = s.date;
+    startStr = s.time;
+    endStr = e.time;
+  }
   return {
     googleId: ge.id,
     title: ge.summary || '(Ohne Titel)',
     notiz: ge.description || '',
     ort: ge.location || '',
-    date: ymd(startDate),
-    start: hm(startDate),
-    end: hm(endDate),
+    date: dateStr,
+    start: startStr,
+    end: endStr,
     type: (ge.extendedProperties && ge.extendedProperties.private && ge.extendedProperties.private.crm_type) || 'google',
     source: 'google'
   };
@@ -213,6 +246,7 @@ module.exports = {
   ensureFreshAccessToken,
   gcalRequest,
   listEvents,
+  listCalendars,
   insertEvent,
   patchEvent,
   deleteEvent,

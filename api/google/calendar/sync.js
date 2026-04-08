@@ -3,6 +3,7 @@ const { adminClient } = require('../../_lib/supabase');
 const {
   ensureFreshAccessToken,
   listEvents,
+  listCalendars,
   insertEvent,
   patchEvent,
   crmEventToGoogleBody,
@@ -67,19 +68,39 @@ module.exports = async function handler(req, res) {
     }
 
     // --- PULL: Google → CRM ---
+    // Pulle aus ALLEN sichtbaren Kalendern (eigene + Abos wie iCloud-ICS),
+    // nicht nur dem primary, damit aus iCloud importierte Termine auch
+    // im CRM auftauchen.
     const now = new Date();
     const timeMin = new Date(now.getTime() - 30 * 24 * 3600 * 1000).toISOString();
     const timeMax = new Date(now.getTime() + 180 * 24 * 3600 * 1000).toISOString();
-    const gList = await listEvents(accessToken, calendarId, { timeMin, timeMax });
+    let calendars = [{ id: calendarId }];
+    try {
+      const calList = await listCalendars(accessToken);
+      if (calList && Array.isArray(calList.items) && calList.items.length) {
+        calendars = calList.items
+          .filter(c => !c.hidden && c.selected !== false)
+          .map(c => ({ id: c.id, summary: c.summary }));
+      }
+    } catch (_) { /* fallback bleibt primary */ }
+
     const pulled = [];
-    if (gList && Array.isArray(gList.items)) {
+    const seenIds = new Set();
+    for (const cal of calendars) {
+      let gList;
+      try {
+        gList = await listEvents(accessToken, cal.id, { timeMin, timeMax });
+      } catch (e) { continue; }
+      if (!gList || !Array.isArray(gList.items)) continue;
       for (const ge of gList.items) {
         if (ge.status === 'cancelled') continue;
+        if (seenIds.has(ge.id)) continue;
+        seenIds.add(ge.id);
         const crm = googleEventToCrm(ge);
         if (crm) {
-          // Preserve the original crm id if this event originated from the CRM
           const extCrmId = ge.extendedProperties && ge.extendedProperties.private && ge.extendedProperties.private.crm_id;
           if (extCrmId) crm.crmId = extCrmId;
+          if (cal.summary) crm.calendar = cal.summary;
           pulled.push(crm);
         }
       }
