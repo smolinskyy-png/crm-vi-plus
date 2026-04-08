@@ -4581,6 +4581,8 @@
       <div class="obj-tab" id="objTab-energie"></div>
       <div class="obj-tab" id="objTab-fotos"></div>
       <div class="obj-tab" id="objTab-dokumente"></div>
+      <input type="file" id="objDetailFotoInput" accept="image/*" multiple style="display:none" onchange="handleObjFotoSelect(event)">
+      <input type="file" id="objDetailDokInput" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" multiple style="display:none" onchange="handleObjDokSelect(event)">
     </div>
   </div>
 </div>
@@ -5178,7 +5180,11 @@
       <button class="btn btn-outline btn-sm" onclick="closeProjektDetail()">✕</button>
     </div>
 
-    <div id="pDetailTitelbildWrap" style="display:none;margin-bottom:16px;position:relative;border-radius:12px;overflow:hidden;border:1px solid var(--border)"></div>
+    <div id="pDetailTitelbildWrap"
+         ondragover="event.preventDefault();this.classList.add('drag-over')"
+         ondragleave="this.classList.remove('drag-over')"
+         ondrop="handlePDetailTitelbildDrop(event)"
+         style="display:none;margin-bottom:16px;position:relative;border-radius:12px;overflow:hidden;border:1px solid var(--border)"></div>
     <input type="file" id="pDetailTitelbildInput" accept="image/*" style="display:none" onchange="handlePDetailTitelbildSelect(event)">
 
     <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center" id="pDetailTabs">
@@ -9523,44 +9529,31 @@ function openObjektDetail(id) {
     thumbs.innerHTML = o.fotos.map((f, i) => `<img src="${f.data}" class="foto-thumb ${i===0?'active':''}" onclick="goObjHero(${i})" title="${f.name}">`).join('');
   } else { galerie.style.display = 'none'; }
 
-  // Tab: Fotos (nur-lesen — Bearbeitung nur über Admin-Tabelle)
-  document.getElementById('objTab-fotos').innerHTML = o.fotos.length
+  // Tab: Fotos — Admin kann per Drag & Drop hochladen
+  const isAdminObj = document.getElementById('userRole').textContent === 'Admin';
+  const fotoUploadZone = isAdminObj
+    ? `<div class="file-upload-zone" style="margin-bottom:14px"
+           onclick="document.getElementById('objDetailFotoInput').click()"
+           ondragover="event.preventDefault();this.classList.add('drag-over')"
+           ondragleave="this.classList.remove('drag-over')"
+           ondrop="handleObjFotoDrop(event)">
+         <div class="upload-icon">📸</div>
+         <p>Fotos hier ablegen oder klicken</p>
+         <div class="upload-hint">PNG, JPG — mehrere möglich, max 10 MB pro Bild</div>
+       </div>`
+    : '';
+  const fotoGridHTML = o.fotos.length
     ? `<div class="foto-grid" id="objFotoGrid">${o.fotos.map((f, i) => `
         <div class="foto-grid-item">
-          <img src="${f.data}" alt="${f.name}">
+          <img src="${f.data}" alt="${f.name}" onclick="setObjHeroBild(${i})">
           ${i === 0 ? '<span class="foto-badge">Titelbild</span>' : ''}
+          ${isAdminObj ? `<button class="foto-delete" onclick="event.stopPropagation(); removeObjFoto('${f.id}')">✕</button>` : ''}
         </div>`).join('')}</div>`
-    : '<p style="text-align:center;color:var(--text-light);padding:32px 0">Keine Fotos vorhanden</p>';
+    : '<p style="text-align:center;color:var(--text-light);padding:20px 0">Keine Fotos vorhanden</p>';
+  document.getElementById('objTab-fotos').innerHTML = fotoUploadZone + fotoGridHTML;
 
-  // Tab: Dokumente (Projekt-Unterlagen + Objekt-Unterlagen)
-  const projektObj = projekte.find(p => p.id === o.projektId);
-  const projektDoks = projektObj ? projektObj.dokumente : [];
-  const objektDoks = o.dokumente;
-  let dokHTML = '';
-  if (projektDoks.length) {
-    dokHTML += '<div class="obj-section-title" style="margin-bottom:8px">📁 Projekt-Unterlagen (' + (projektObj ? projektObj.name : '') + ')</div>';
-    dokHTML += projektDoks.map(d => `
-      <div class="dok-item">
-        <span style="font-size:18px">${d.name.endsWith('.pdf') ? '📕' : '🖼️'}</span>
-        <span style="flex:1;font-size:13px;font-weight:500">${d.name}</span>
-        <span style="font-size:11px;color:var(--text-light)">${(d.size/1024).toFixed(0)} KB</span>
-        <button class="btn btn-outline btn-sm" style="padding:2px 8px;font-size:11px" onclick="const dd=projekte.find(x=>x.id===${o.projektId}).dokumente.find(x=>String(x.id)==='${d.id}');if(dd){const a=document.createElement('a');a.href=dd.data;a.download=dd.name;a.click();}">⬇</button>
-      </div>`).join('');
-  }
-  if (objektDoks.length) {
-    dokHTML += '<div class="obj-section-title" style="margin:16px 0 8px">📂 Wohnungs-Unterlagen (' + o.whgNr + ')</div>';
-    dokHTML += objektDoks.map(d => `
-      <div class="dok-item">
-        <span style="font-size:18px">${d.name.endsWith('.pdf') ? '📕' : '🖼️'}</span>
-        <span style="flex:1;font-size:13px;font-weight:500">${d.name}</span>
-        <span style="font-size:11px;color:var(--text-light)">${(d.size/1024).toFixed(0)} KB</span>
-        <button class="btn btn-outline btn-sm" style="padding:2px 8px;font-size:11px" onclick="const dd=objekte.find(x=>x.id===${id}).dokumente.find(x=>String(x.id)==='${d.id}');if(dd){const a=document.createElement('a');a.href=dd.data;a.download=dd.name;a.click();}">⬇</button>
-      </div>`).join('');
-  }
-  if (!projektDoks.length && !objektDoks.length) {
-    dokHTML = '<p style="text-align:center;color:var(--text-light);padding:32px 0">Keine Unterlagen vorhanden</p>';
-  }
-  document.getElementById('objTab-dokumente').innerHTML = dokHTML;
+  // Tab: Dokumente (Projekt-Unterlagen + Objekt-Unterlagen) inkl. Upload
+  refreshObjDetailDokumente(o);
 
   // Reset tab
   switchObjTab('basis', document.querySelector('#objDetailTabs button'));
@@ -9769,13 +9762,96 @@ function processObjFotos(files) {
     const reader = new FileReader();
     reader.onload = function(e) {
       o.fotos.push({ id: Date.now() + Math.random(), name: file.name, data: e.target.result, date: new Date().toLocaleDateString('de-DE') });
-      renderObjFotos();
-      updateObjHeroAndGalerie(o);
+      refreshObjDetailFotos(o);
       renderObjekte();
+      crmDataChanged();
       showNotification(file.name + ' hochgeladen' + (o.fotos.length === 1 ? ' (Titelbild)' : ''), 'success');
     };
     reader.readAsDataURL(file);
   });
+}
+
+// Rerender dokumente-tab Inhalte nach Upload/Delete
+function refreshObjDetailDokumente(o) {
+  if (!o) return;
+  const tab = document.getElementById('objTab-dokumente');
+  if (!tab) return;
+  const isAdminObj = document.getElementById('userRole').textContent === 'Admin';
+  const projektObj = projekte.find(p => p.id === o.projektId);
+  const projektDoks = projektObj ? projektObj.dokumente : [];
+  const objektDoks = o.dokumente || [];
+  const id = o.id;
+  let dokHTML = '';
+  if (projektDoks.length) {
+    dokHTML += '<div class="obj-section-title" style="margin-bottom:8px">📁 Projekt-Unterlagen (' + (projektObj ? projektObj.name : '') + ')</div>';
+    dokHTML += projektDoks.map(d => `
+      <div class="dok-item">
+        <span style="font-size:18px">${d.name.endsWith('.pdf') ? '📕' : '🖼️'}</span>
+        <span style="flex:1;font-size:13px;font-weight:500">${d.name}</span>
+        <span style="font-size:11px;color:var(--text-light)">${(d.size/1024).toFixed(0)} KB</span>
+        <button class="btn btn-outline btn-sm" style="padding:2px 8px;font-size:11px" onclick="const dd=projekte.find(x=>x.id===${o.projektId}).dokumente.find(x=>String(x.id)==='${d.id}');if(dd){const a=document.createElement('a');a.href=dd.data;a.download=dd.name;a.click();}">⬇</button>
+      </div>`).join('');
+  }
+  if (objektDoks.length) {
+    dokHTML += '<div class="obj-section-title" style="margin:16px 0 8px">📂 Wohnungs-Unterlagen (' + (o.whgNr || '') + ')</div>';
+    dokHTML += objektDoks.map(d => {
+      const sizeStr = d.size < 1024 ? d.size+' B' : d.size < 1048576 ? (d.size/1024).toFixed(1)+' KB' : (d.size/1048576).toFixed(1)+' MB';
+      const isPdf = (d.type === 'application/pdf') || (d.name && d.name.toLowerCase().endsWith('.pdf'));
+      const badge = d.uploading
+        ? '<span style="font-size:10px;font-weight:700;color:#a16207;background:#fef3c7;padding:2px 7px;border-radius:10px;margin-left:6px">⏳ Speichere…</span>'
+        : (d.error ? '<span style="font-size:10px;font-weight:700;color:#991b1b;background:#fee2e2;padding:2px 7px;border-radius:10px;margin-left:6px">⚠ Fehler</span>' : '');
+      return `<div class="dok-item">
+        <span style="font-size:18px">${isPdf ? '📕' : '📄'}</span>
+        <span style="flex:1;font-size:13px;font-weight:500">${d.name}${badge}</span>
+        <span style="font-size:11px;color:var(--text-light)">${sizeStr}</span>
+        <button class="btn btn-outline btn-sm" style="padding:2px 8px;font-size:11px" onclick="event.stopPropagation();downloadObjDok('${d.id}')">⬇</button>
+        ${isAdminObj ? `<button class="btn btn-outline btn-sm" style="padding:2px 8px;font-size:11px;color:var(--danger);border-color:var(--danger)" onclick="event.stopPropagation();removeObjDok('${d.id}')">✕</button>` : ''}
+      </div>`;
+    }).join('');
+  }
+  if (!projektDoks.length && !objektDoks.length) {
+    dokHTML = '<p style="text-align:center;color:var(--text-light);padding:20px 0">Keine Unterlagen vorhanden</p>';
+  }
+  const dokUploadZone = isAdminObj
+    ? `<div class="file-upload-zone" style="margin-bottom:14px"
+           onclick="document.getElementById('objDetailDokInput').click()"
+           ondragover="event.preventDefault();this.classList.add('drag-over')"
+           ondragleave="this.classList.remove('drag-over')"
+           ondrop="handleObjDokDrop(event)">
+         <div class="upload-icon">📄</div>
+         <p>Unterlagen hier ablegen oder klicken</p>
+         <div class="upload-hint">PDF, Bilder, Office-Dateien — max 50 MB pro Datei</div>
+       </div>`
+    : '';
+  tab.innerHTML = dokUploadZone + dokHTML;
+}
+
+// Rerender fotos-tab inhalte + Hero/Galerie nach Upload/Delete
+function refreshObjDetailFotos(o) {
+  if (!o) return;
+  updateObjHeroAndGalerie(o);
+  const isAdminObj = document.getElementById('userRole').textContent === 'Admin';
+  const fotoUploadZone = isAdminObj
+    ? `<div class="file-upload-zone" style="margin-bottom:14px"
+           onclick="document.getElementById('objDetailFotoInput').click()"
+           ondragover="event.preventDefault();this.classList.add('drag-over')"
+           ondragleave="this.classList.remove('drag-over')"
+           ondrop="handleObjFotoDrop(event)">
+         <div class="upload-icon">📸</div>
+         <p>Fotos hier ablegen oder klicken</p>
+         <div class="upload-hint">PNG, JPG — mehrere möglich, max 10 MB pro Bild</div>
+       </div>`
+    : '';
+  const fotoGridHTML = o.fotos.length
+    ? `<div class="foto-grid" id="objFotoGrid">${o.fotos.map((f, i) => `
+        <div class="foto-grid-item">
+          <img src="${f.data}" alt="${f.name}" onclick="setObjHeroBild(${i})">
+          ${i === 0 ? '<span class="foto-badge">Titelbild</span>' : ''}
+          ${isAdminObj ? `<button class="foto-delete" onclick="event.stopPropagation(); removeObjFoto('${f.id}')">✕</button>` : ''}
+        </div>`).join('')}</div>`
+    : '<p style="text-align:center;color:var(--text-light);padding:20px 0">Keine Fotos vorhanden</p>';
+  const tab = document.getElementById('objTab-fotos');
+  if (tab) tab.innerHTML = fotoUploadZone + fotoGridHTML;
 }
 
 function renderObjFotos() {
@@ -9795,9 +9871,9 @@ function removeObjFoto(fotoId) {
   const o = objekte.find(x => x.id === currentObjektId);
   if (!o) return;
   o.fotos = o.fotos.filter(f => String(f.id) !== String(fotoId));
-  renderObjFotos();
-  updateObjHeroAndGalerie(o);
+  refreshObjDetailFotos(o);
   renderObjekte();
+  crmDataChanged();
   showNotification('Foto entfernt', 'info');
 }
 
@@ -9861,7 +9937,7 @@ function processObjDokumente(files) {
       error: null
     };
     o.dokumente.push(dok);
-    renderObjDokumente();
+    refreshObjDetailDokumente(objekte.find(x => x.id === currentObjektId));
 
     // Step 1: read file as base64 and save inline via the existing crm_data
     // sync. This is the proven path — it always works and is what makes the
@@ -9873,7 +9949,7 @@ function processObjDokumente(files) {
       dok.saved = true; // saved into crm_data via the next debounced sync
       showNotification(file.name + ' gespeichert', 'success');
       crmDataChanged();
-      renderObjDokumente();
+      refreshObjDetailDokumente(objekte.find(x => x.id === currentObjektId));
 
       // Step 2: best-effort upgrade — try uploading to Supabase Storage so
       // we can drop the base64 from crm_data later. Failure is not fatal.
@@ -9896,7 +9972,7 @@ function processObjDokumente(files) {
           dok.storage_path = signed.path;
           dok.data = null; // hosted in storage now, drop the inline copy
           crmDataChanged();
-          renderObjDokumente();
+          refreshObjDetailDokumente(objekte.find(x => x.id === currentObjektId));
         } catch (err) {
           // Storage upload failed — that's OK, the base64 in crm_data is the
           // source of truth. Log for diagnostics.
@@ -9908,7 +9984,7 @@ function processObjDokumente(files) {
       dok.uploading = false;
       dok.saved = false;
       dok.error = 'Datei konnte nicht gelesen werden';
-      renderObjDokumente();
+      refreshObjDetailDokumente(objekte.find(x => x.id === currentObjektId));
     };
     reader.readAsDataURL(file);
   });
@@ -9957,6 +10033,7 @@ function renameObjDok(dokId, newName) {
   const dok = o.dokumente.find(d => String(d.id) === String(dokId));
   if (dok && newName.trim()) {
     dok.name = newName.trim();
+    crmDataChanged();
     showNotification('Umbenannt zu "' + dok.name + '"', 'success');
   }
 }
@@ -9992,7 +10069,7 @@ async function removeObjDok(dokId) {
     } catch (e) { console.warn('storage remove failed', e); }
   }
   o.dokumente = o.dokumente.filter(d => String(d.id) !== String(dokId));
-  renderObjDokumente();
+  refreshObjDetailDokumente(objekte.find(x => x.id === currentObjektId));
   crmDataChanged();
   showNotification('Unterlage gelöscht', 'info');
 }
@@ -10771,7 +10848,19 @@ function renderPDetailTitelbild() {
 function handlePDetailTitelbildSelect(event) {
   const f = event.target.files && event.target.files[0];
   event.target.value = '';
-  if (!f) return;
+  if (f) processPDetailTitelbild(f);
+}
+
+function handlePDetailTitelbildDrop(event) {
+  event.preventDefault();
+  event.currentTarget.classList.remove('drag-over');
+  // Admin-Schutz: VP soll keine Titelbilder ablegen
+  if (document.getElementById('userRole').textContent !== 'Admin') return;
+  const f = event.dataTransfer.files && event.dataTransfer.files[0];
+  if (f) processPDetailTitelbild(f);
+}
+
+function processPDetailTitelbild(f) {
   if (!f.type.startsWith('image/')) { showNotification('Nur Bilddateien erlaubt', 'info'); return; }
   if (f.size > 10 * 1024 * 1024) { showNotification('Max 10 MB', 'info'); return; }
   const p = projekte.find(x => x.id === currentProjektId);
