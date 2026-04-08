@@ -3581,11 +3581,12 @@
                   <div class="cal-provider-icon" style="background:linear-gradient(135deg,#e8f5e9,#c8e6c9)">📗</div>
                   <div class="cal-provider-info">
                     <h4>Google Kalender</h4>
-                    <p>Synchronisation mit Ihrem Google-Konto und allen Google-Kalendern</p>
+                    <p id="calProvGoogleDesc">Synchronisation mit Ihrem Google-Konto und allen Google-Kalendern</p>
                   </div>
                   <div id="calProvGoogleStatus" class="cal-provider-status disconnected">
                     <span>●</span> Nicht verbunden
                   </div>
+                  <button class="btn btn-outline btn-sm" id="calProvGoogleSyncBtn" onclick="syncGoogleCalendar()" style="display:none;font-size:12px;white-space:nowrap;margin-right:6px">🔄 Sync</button>
                   <button class="btn btn-gold btn-sm" id="calProvGoogleBtn" onclick="toggleCalProvider('google')" style="font-size:12px;white-space:nowrap">Verbinden</button>
                 </div>
                 <!-- Microsoft Outlook -->
@@ -6435,7 +6436,7 @@ function showPage(pageId, navItem) {
     const role = document.getElementById('userRole').textContent;
     document.getElementById('btnVideoUpload').style.display = role === 'Admin' ? 'inline-flex' : 'none';
   }
-  if (pageId === 'kalender') { renderCalendar(); }
+  if (pageId === 'kalender') { renderCalendar(); refreshGoogleCalStatus(); }
   if (pageId === 'chats') { renderChats(); }
   if (pageId === 'dateien') { renderDateien(); }
   if (pageId === 'dashboard') { renderDashboard(); renderDashCalWidget(); }
@@ -13552,6 +13553,7 @@ function showCalTab(tab) {
   document.getElementById('calPanelSettings').style.display = tab === 'settings' ? '' : 'none';
   document.getElementById('calTabOverview').className = tab === 'overview' ? 'btn btn-gold btn-sm' : 'btn btn-outline btn-sm';
   document.getElementById('calTabSettings').className = tab === 'settings' ? 'btn btn-gold btn-sm' : 'btn btn-outline btn-sm';
+  if (tab === 'settings') refreshGoogleCalStatus();
 }
 
 function setCalView(view) {
@@ -13785,6 +13787,8 @@ function calSaveNewEvent() {
 
 // Provider-Verbindungen (Simulation)
 function toggleCalProvider(provider) {
+  if (provider === 'google') { toggleGoogleCalendar(); return; }
+  // Dummy-Verhalten für andere Provider bis sie ebenfalls angebunden werden
   calProviders[provider] = !calProviders[provider];
   const connected = calProviders[provider];
   const statusEl = document.getElementById('calProv' + provider.charAt(0).toUpperCase() + provider.slice(1) + 'Status');
@@ -13803,6 +13807,178 @@ function toggleCalProvider(provider) {
     btnEl.className = 'btn btn-gold btn-sm';
     btnEl.style.cssText = 'font-size:12px;white-space:nowrap';
     showNotification(provider.charAt(0).toUpperCase() + provider.slice(1) + t(' getrennt',' disconnected'), 'info');
+  }
+}
+
+// ==================== GOOGLE KALENDER ====================
+
+let googleCalState = { connected: false, email: null, lastSyncAt: null };
+
+async function refreshGoogleCalStatus() {
+  try {
+    const res = await apiFetch('/api/google/calendar/status');
+    googleCalState = {
+      connected: !!res.connected,
+      email: res.email || null,
+      lastSyncAt: res.lastSyncAt || null
+    };
+  } catch (e) {
+    googleCalState = { connected: false, email: null, lastSyncAt: null };
+  }
+  renderGoogleProviderUI();
+}
+
+function renderGoogleProviderUI() {
+  const statusEl = document.getElementById('calProvGoogleStatus');
+  const btnEl = document.getElementById('calProvGoogleBtn');
+  const syncBtn = document.getElementById('calProvGoogleSyncBtn');
+  const descEl = document.getElementById('calProvGoogleDesc');
+  if (!statusEl || !btnEl) return;
+  calProviders.google = googleCalState.connected;
+  if (googleCalState.connected) {
+    statusEl.className = 'cal-provider-status connected';
+    const email = googleCalState.email ? ' · ' + googleCalState.email : '';
+    statusEl.innerHTML = '<span>●</span> ' + t('Verbunden','Connected') + email;
+    btnEl.textContent = t('Trennen','Disconnect');
+    btnEl.className = 'btn btn-outline btn-sm';
+    btnEl.style.cssText = 'font-size:12px;white-space:nowrap;color:var(--danger);border-color:var(--danger)';
+    if (syncBtn) syncBtn.style.display = '';
+    if (descEl && googleCalState.lastSyncAt) {
+      const d = new Date(googleCalState.lastSyncAt);
+      descEl.textContent = 'Letzte Synchronisation: ' + d.toLocaleString('de-DE');
+    }
+  } else {
+    statusEl.className = 'cal-provider-status disconnected';
+    statusEl.innerHTML = '<span>●</span> ' + t('Nicht verbunden','Not connected');
+    btnEl.textContent = t('Verbinden','Connect');
+    btnEl.className = 'btn btn-gold btn-sm';
+    btnEl.style.cssText = 'font-size:12px;white-space:nowrap';
+    if (syncBtn) syncBtn.style.display = 'none';
+    if (descEl) descEl.textContent = 'Synchronisation mit Ihrem Google-Konto und allen Google-Kalendern';
+  }
+}
+
+async function toggleGoogleCalendar() {
+  if (googleCalState.connected) {
+    if (!confirm(t('Google Kalender wirklich trennen? Bestehende Termine bleiben im CRM.','Really disconnect Google Calendar? Existing events stay in the CRM.'))) return;
+    try {
+      await apiFetch('/api/google/calendar/disconnect', { method: 'POST' });
+      googleCalState = { connected: false, email: null, lastSyncAt: null };
+      renderGoogleProviderUI();
+      showNotification('Google Kalender getrennt', 'info');
+    } catch (e) {
+      showNotification('Fehler beim Trennen: ' + e.message, 'error');
+    }
+    return;
+  }
+  // Connect: OAuth-Flow in Popup starten
+  let startRes;
+  try {
+    startRes = await apiFetch('/api/google/calendar/auth-start');
+  } catch (e) {
+    showNotification('Konnte OAuth nicht starten: ' + e.message, 'error');
+    return;
+  }
+  const url = startRes && startRes.url;
+  if (!url) { showNotification('OAuth-URL fehlt', 'error'); return; }
+  const w = 520, h = 640;
+  const left = window.screenX + (window.outerWidth - w) / 2;
+  const top = window.screenY + (window.outerHeight - h) / 2;
+  const popup = window.open(url, 'gcal-oauth', 'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top);
+  if (!popup) { showNotification('Popup wurde blockiert — bitte Popups erlauben', 'error'); return; }
+
+  // Auf Nachricht aus dem Callback warten
+  const onMsg = async (ev) => {
+    if (!ev.data || ev.data.type !== 'gcal-oauth') return;
+    window.removeEventListener('message', onMsg);
+    try { popup.close(); } catch(_) {}
+    if (ev.data.success) {
+      showNotification('Google Kalender verbunden' + (ev.data.email ? ': ' + ev.data.email : ''), 'success');
+      await refreshGoogleCalStatus();
+      // Direkt erste Synchronisation fahren
+      syncGoogleCalendar(true);
+    } else {
+      showNotification('Verbindung fehlgeschlagen: ' + (ev.data.message || 'unbekannter Fehler'), 'error');
+    }
+  };
+  window.addEventListener('message', onMsg);
+  // Fallback: wenn Popup geschlossen wird ohne Message, Status neu laden
+  const watcher = setInterval(() => {
+    if (popup.closed) {
+      clearInterval(watcher);
+      setTimeout(() => refreshGoogleCalStatus(), 300);
+      window.removeEventListener('message', onMsg);
+    }
+  }, 500);
+}
+
+async function syncGoogleCalendar(silent) {
+  if (!googleCalState.connected) return;
+  const btn = document.getElementById('calProvGoogleSyncBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '🔄 Läuft…'; }
+  try {
+    // CRM-Events für den Sync vorbereiten (nur bekannte Felder)
+    const events = (calEvents || []).map(e => ({
+      id: e.id,
+      googleId: e.googleId || null,
+      title: e.title,
+      date: e.date,
+      start: e.start,
+      end: e.end,
+      type: e.type,
+      notiz: e.notiz || '',
+      ort: e.ort || '',
+      kunde: e.kunde || ''
+    }));
+    const res = await apiFetch('/api/google/calendar/sync', {
+      method: 'POST',
+      body: JSON.stringify({ events })
+    });
+    // googleId aus Push-Ergebnissen zurück in calEvents mergen
+    if (Array.isArray(res.pushed)) {
+      res.pushed.forEach(r => {
+        if (!r.ok || !r.googleId) return;
+        const e = calEvents.find(x => x.id === r.id);
+        if (e) e.googleId = r.googleId;
+      });
+    }
+    // Gezogene Google-Events in calEvents einpflegen (nur neue, bereits gemappte überspringen)
+    if (Array.isArray(res.pulled)) {
+      const knownGoogleIds = new Set(calEvents.map(e => e.googleId).filter(Boolean));
+      res.pulled.forEach(ge => {
+        if (!ge.googleId) return;
+        if (knownGoogleIds.has(ge.googleId)) return;
+        // Events, die aus dem CRM stammen (crmId gesetzt) nicht doppelt anlegen
+        if (ge.crmId && calEvents.some(e => String(e.id) === String(ge.crmId))) {
+          const e = calEvents.find(x => String(x.id) === String(ge.crmId));
+          if (e) e.googleId = ge.googleId;
+          return;
+        }
+        calEvents.push({
+          id: calNextId++,
+          googleId: ge.googleId,
+          title: ge.title,
+          notiz: ge.notiz,
+          ort: ge.ort,
+          date: ge.date,
+          start: ge.start,
+          end: ge.end,
+          type: ge.type === 'google' ? 'intern' : ge.type,
+          source: 'google'
+        });
+      });
+    }
+    crmDataChanged();
+    renderCalendar();
+    googleCalState.lastSyncAt = res.lastSyncAt || new Date().toISOString();
+    renderGoogleProviderUI();
+    if (!silent) {
+      showNotification('Sync abgeschlossen · ' + (res.pushedCount || 0) + ' gesendet, ' + (res.pulledCount || 0) + ' empfangen', 'success');
+    }
+  } catch (e) {
+    showNotification('Sync fehlgeschlagen: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Sync'; }
   }
 }
 
