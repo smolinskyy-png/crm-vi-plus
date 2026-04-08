@@ -13123,10 +13123,11 @@ function renderChats() {
   console.log('[CRM] renderChats called — build marker v3 email-integration');
   // Load accounts and mails from API/DB
   loadEmailAccounts().then(() => loadEmailsFromDb());
+  startEmailAutoSync();
 }
 
 // One-time build marker so users can verify they have the latest code
-console.log('[CRM VI PLUS] Build: email-integration-v5 — Folders (Trash/Spam/Archive/Drafts) + unread filter');
+console.log('[CRM VI PLUS] Build: email-integration-v6 — sort fix + 60s auto-sync');
 
 function switchChatTab(tab, btn) {
   document.querySelectorAll('#page-chats .chat-tab').forEach(t => t.classList.remove('active'));
@@ -13245,7 +13246,7 @@ async function loadEmailsFromDb() {
   try {
     const accountFilter = document.getElementById('emailAccountFilter');
     const accountId = accountFilter ? accountFilter.value : '';
-    let q = sb.from('emails').select('*').order('date_sent', { ascending: false }).limit(500);
+    let q = sb.from('emails').select('*').order('date_sent', { ascending: false, nullsFirst: false }).limit(500);
     if (accountId) q = q.eq('account_id', accountId);
     const { data, error } = await q;
     if (error) throw error;
@@ -13284,8 +13285,12 @@ function renderEmailList() {
     );
   }
 
-  // Sort by date desc (already from query, but enforce)
-  items.sort((a, b) => new Date(b.date_sent || 0) - new Date(a.date_sent || 0));
+  // Sort by date desc — newest first. Fall back to created_at if IMAP date missing.
+  items.sort((a, b) => {
+    const ta = new Date(a.date_sent || a.created_at || 0).getTime();
+    const tb = new Date(b.date_sent || b.created_at || 0).getTime();
+    return tb - ta;
+  });
 
   // Header title / count
   const titleMap = Object.fromEntries(MAILBOX_FOLDERS.map(f => [f.key, f.icon + ' ' + f.label]));
@@ -13858,6 +13863,40 @@ async function syncAllEmailAccounts() {
   const accs = window._emailAccountsCache || [];
   if (!accs.length) { showNotification('Keine Konten verknüpft', 'info'); return; }
   for (const a of accs) await syncOneAccount(a.id);
+}
+
+// Client-side auto-sync — läuft alle 60s solange der Chats-Tab sichtbar
+// und das Browser-Tab fokussiert ist. Dient als Fallback, falls der
+// Vercel-Cron nicht minütlich laufen darf (Hobby-Plan).
+window._emailAutoSyncTimer = null;
+window._emailAutoSyncInFlight = false;
+
+async function emailAutoSyncTick() {
+  if (window._emailAutoSyncInFlight) return;
+  if (document.hidden) return;
+  const tab = document.getElementById('chatTabEmails');
+  if (!tab || tab.offsetParent === null) return;
+  const accs = window._emailAccountsCache || [];
+  if (!accs.length) return;
+  window._emailAutoSyncInFlight = true;
+  try {
+    for (const a of accs) {
+      try { await apiFetch('/api/email/sync', { method: 'POST', body: JSON.stringify({ account_id: a.id, limit: 20 }) }); }
+      catch (e) { console.warn('auto-sync', a.id, e.message); }
+    }
+    await loadEmailsFromDb();
+  } finally {
+    window._emailAutoSyncInFlight = false;
+  }
+}
+
+function startEmailAutoSync() {
+  if (window._emailAutoSyncTimer) return;
+  window._emailAutoSyncTimer = setInterval(emailAutoSyncTick, 60_000);
+}
+
+function stopEmailAutoSync() {
+  if (window._emailAutoSyncTimer) { clearInterval(window._emailAutoSyncTimer); window._emailAutoSyncTimer = null; }
 }
 
 function updateChatsBadge() {
