@@ -4824,7 +4824,6 @@
         <p id="detailMeta">Erstellt am 28.03.2026 · Website</p>
       </div>
       <div class="lead-detail-actions">
-        <div id="detailScoreBadge" style="background:#ef4444;color:white;padding:6px 12px;border-radius:20px;font-weight:bold;font-size:14px;min-width:50px;text-align:center">0</div>
         <button class="btn-share" onclick="shareLeadLink()">🔗 Teilen</button>
       </div>
       <button class="close-detail" onclick="closeLeadDetail()">✕</button>
@@ -7116,12 +7115,6 @@ function openLeadDetail(leadId) {
   document.getElementById('detailAvatar').style.background = bgColors[lead.tag] || '#3b82f6';
   document.getElementById('detailName').textContent = lead.firstName + ' ' + lead.lastName;
   document.getElementById('detailMeta').textContent = t('Erstellt am ','Created on ') + lead.date + ' · ' + lead.source;
-
-  // Score badge
-  const score = calcVertriebsScore(lead);
-  const scoreBadge = document.getElementById('detailScoreBadge');
-  scoreBadge.textContent = score;
-  scoreBadge.style.background = getScoreColor(score);
 
   // Fill editable fields
   document.getElementById('detailFirstName').value = lead.firstName;
