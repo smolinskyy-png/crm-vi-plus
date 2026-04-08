@@ -5711,15 +5711,33 @@ async function submitInviteUser() {
     // Refresh the list if we're on that page
     if (typeof renderBenutzerList === 'function') renderBenutzerList();
 
+    // Trigger an actual email via the configured SMTP (Strato).
+    // Since "Confirm email" is disabled, signUp() does NOT send any mail.
+    // resetPasswordForEmail() reliably sends via the Custom SMTP settings.
+    let emailStatus = '';
+    try {
+      const { error: mailErr } = await tempClient.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + '/'
+      });
+      if (mailErr) {
+        emailStatus = '<div style="background:#fef2f2;color:#991b1b;padding:8px;border-radius:6px;margin-top:8px;font-size:12px">⚠️ E-Mail-Versand fehlgeschlagen: ' + (mailErr.message || mailErr) + '</div>';
+      } else {
+        emailStatus = '<div style="background:#ecfdf5;color:#065f46;padding:8px;border-radius:6px;margin-top:8px;font-size:12px">📧 E-Mail mit Einrichtungslink wurde an <strong>' + email + '</strong> gesendet.</div>';
+      }
+    } catch (mailEx) {
+      emailStatus = '<div style="background:#fef2f2;color:#991b1b;padding:8px;border-radius:6px;margin-top:8px;font-size:12px">⚠️ E-Mail-Versand fehlgeschlagen: ' + (mailEx.message || mailEx) + '</div>';
+    }
+
     const result = document.getElementById('inviteResult');
     result.style.display = 'block';
     result.innerHTML = '<strong>✅ Einladung erstellt!</strong><br>' +
-      '<span style="color:var(--text-light)">Der Benutzer <strong>' + email + '</strong> wurde angelegt.</span><br><br>' +
-      '<div style="background:white;padding:8px;border-radius:6px;border:1px dashed var(--gold)">' +
-      '<strong>Temporäres Passwort:</strong><br>' +
+      '<span style="color:var(--text-light)">Der Benutzer <strong>' + email + '</strong> wurde angelegt.</span>' +
+      emailStatus +
+      '<div style="background:white;padding:8px;border-radius:6px;border:1px dashed var(--gold);margin-top:8px">' +
+      '<strong>Temporäres Passwort (Backup):</strong><br>' +
       '<code style="font-size:15px;color:var(--primary);user-select:all">' + tempPassword + '</code>' +
       '</div>' +
-      '<p style="margin-top:8px;font-size:12px;color:var(--text-light)">Der Benutzer muss beim ersten Login ein eigenes Passwort setzen.</p>';
+      '<p style="margin-top:8px;font-size:12px;color:var(--text-light)">Der Benutzer erhält eine E-Mail mit einem Link, um sein eigenes Passwort zu setzen. Falls keine Mail ankommt, kannst du ihm das temporäre Passwort manuell mitteilen.</p>';
 
     btn.textContent = 'Erneut einladen';
     btn.disabled = false;
