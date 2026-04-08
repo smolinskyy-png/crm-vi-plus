@@ -11,7 +11,7 @@ module.exports = async (req, res) => {
   try {
     const user = await requireUser(req);
     const body = await readJson(req);
-    const { account_id, to, cc, bcc, subject, text, html, in_reply_to, references } = body;
+    const { account_id, to, cc, bcc, subject, text, html, in_reply_to, references, attachments } = body;
     if (!account_id || !to || !subject) {
       return json(res, 400, { error: 'account_id, to, subject sind Pflicht' });
     }
@@ -33,6 +33,17 @@ module.exports = async (req, res) => {
       tls: { rejectUnauthorized: false }
     });
 
+    // Decode attachments once so we can both attach to SMTP and store them
+    const decodedAtts = Array.isArray(attachments)
+      ? attachments
+          .filter(a => a && a.filename && a.content_b64)
+          .map(a => ({
+            filename: a.filename,
+            content: Buffer.from(a.content_b64, 'base64'),
+            contentType: a.content_type || 'application/octet-stream'
+          }))
+      : [];
+
     const info = await transporter.sendMail({
       from: account.email,
       to,
@@ -42,11 +53,14 @@ module.exports = async (req, res) => {
       text: text || undefined,
       html: html || undefined,
       inReplyTo: in_reply_to || undefined,
-      references: references || undefined
+      references: references || undefined,
+      attachments: decodedAtts.length ? decodedAtts.map(a => ({
+        filename: a.filename, content: a.content, contentType: a.contentType
+      })) : undefined
     });
 
     // Store in DB as "sent"
-    await sb.from('emails').insert({
+    const { data: insRow, error: insErr } = await sb.from('emails').insert({
       account_id: account.id,
       user_id: user.id,
       folder: 'SENT',
@@ -62,8 +76,31 @@ module.exports = async (req, res) => {
       body_html: html || null,
       date_sent: new Date().toISOString(),
       is_read: true,
-      has_attachments: false
-    });
+      has_attachments: decodedAtts.length > 0
+    }).select('id').single();
+    if (insErr) throw insErr;
+
+    // Upload + record attachments for the sent email so they show up later
+    for (const a of decodedAtts) {
+      try {
+        const safeName = a.filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const path = `${user.id}/${insRow.id}/${safeName}`;
+        const { error: upErr } = await sb.storage
+          .from('email-attachments')
+          .upload(path, a.content, { contentType: a.contentType, upsert: true });
+        if (upErr) throw upErr;
+        await sb.from('email_attachments').insert({
+          email_id: insRow.id,
+          user_id: user.id,
+          filename: a.filename,
+          mime_type: a.contentType,
+          size_bytes: a.content.length,
+          storage_path: path
+        });
+      } catch (e) {
+        console.error('sent attachment store failed', e.message);
+      }
+    }
 
     return json(res, 200, { ok: true, messageId: info.messageId });
   } catch (e) {

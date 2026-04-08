@@ -13128,7 +13128,7 @@ function renderChats() {
 }
 
 // One-time build marker so users can verify they have the latest code
-console.log('[CRM VI PLUS] Build: email-integration-v8 — 30s polling + visibility/focus sync');
+console.log('[CRM VI PLUS] Build: email-integration-v9 — attachments fix (list endpoint + refetch + sent uploads)');
 
 function switchChatTab(tab, btn) {
   document.querySelectorAll('#page-chats .chat-tab').forEach(t => t.classList.remove('active'));
@@ -13393,12 +13393,30 @@ async function openEmail(id) {
     }).catch(err => console.warn('mark-read failed', err));
   }
 
-  // Load attachments list
+  // Load attachments list via server endpoint (avoids RLS issues on the table)
   let attachments = [];
   try {
-    const { data } = await sb.from('email_attachments').select('*').eq('email_id', e.id);
-    attachments = data || [];
-  } catch (_) {}
+    const r = await apiFetch('/api/email/attachments-list?email_id=' + encodeURIComponent(e.id));
+    attachments = (r && r.attachments) || [];
+  } catch (err) {
+    console.warn('attachments-list failed', err.message);
+  }
+  // If the email is flagged as having attachments but none are stored,
+  // re-fetch them from IMAP once (handles previous upload failures).
+  if (!attachments.length && e.has_attachments && e.folder !== 'SENT') {
+    try {
+      const r = await apiFetch('/api/email/refetch-attachments', {
+        method: 'POST',
+        body: JSON.stringify({ email_id: e.id })
+      });
+      if (r && r.uploaded > 0) {
+        const r2 = await apiFetch('/api/email/attachments-list?email_id=' + encodeURIComponent(e.id));
+        attachments = (r2 && r2.attachments) || [];
+      }
+    } catch (err) {
+      console.warn('refetch-attachments failed', err.message);
+    }
+  }
 
   const d = e.date_sent ? new Date(e.date_sent) : null;
   const dateStr = d ? d.toLocaleString('de-DE') : '';
@@ -13541,9 +13559,25 @@ function handleEmailAttachment(files) {
       showNotification(t('Datei zu groß (max. 25 MB): ','File too large (max 25 MB): ') + f.name, 'warning');
       continue;
     }
-    emailAttachments.push({ id: Date.now() + Math.random(), name: f.name, size: f.size, type: f.type });
+    const att = { id: Date.now() + Math.random(), name: f.name, size: f.size, type: f.type, content_b64: null };
+    emailAttachments.push(att);
+    const reader = new FileReader();
+    reader.onload = () => {
+      // Strip the "data:...;base64," prefix
+      const s = reader.result || '';
+      const i = String(s).indexOf(',');
+      att.content_b64 = i >= 0 ? String(s).slice(i + 1) : '';
+      renderEmailAttachments();
+    };
+    reader.readAsDataURL(f);
   }
   renderEmailAttachments();
+}
+
+function attachmentsForSend() {
+  return emailAttachments
+    .filter(a => a.content_b64)
+    .map(a => ({ filename: a.name, content_b64: a.content_b64, content_type: a.type || null }));
 }
 
 function renderEmailAttachments() {
@@ -13584,7 +13618,8 @@ async function sendEmailAction(action) {
         cc: cc || undefined,
         subject,
         text: body,
-        in_reply_to: selectedEmail.message_id || undefined
+        in_reply_to: selectedEmail.message_id || undefined,
+        attachments: attachmentsForSend()
       })
     });
     showNotification(t('Gesendet','Sent') + ' ' + t('an','to') + ' ' + to, 'success');
@@ -13708,7 +13743,7 @@ async function sendComposeEmail() {
   try {
     await apiFetch('/api/email/send', {
       method: 'POST',
-      body: JSON.stringify({ account_id: accountId, to, cc: cc || undefined, subject, text: body })
+      body: JSON.stringify({ account_id: accountId, to, cc: cc || undefined, subject, text: body, attachments: attachmentsForSend() })
     });
     showNotification(t('E-Mail gesendet an ','Email sent to ') + to, 'success');
     emailAttachments = [];

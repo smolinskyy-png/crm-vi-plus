@@ -77,15 +77,26 @@ async function findContactIdByEmail(sb, userId, email) {
 
 async function uploadAttachment(sb, userId, emailId, att) {
   const safeName = (att.filename || 'attachment').replace(/[^a-zA-Z0-9._-]/g, '_');
-  const path = `${userId}/${emailId}/${Date.now()}_${safeName}`;
+  // Stable path so retries don't create duplicate storage objects
+  const path = `${userId}/${emailId}/${safeName}`;
   const { error: upErr } = await sb.storage
     .from('email-attachments')
     .upload(path, att.content, {
       contentType: att.contentType || 'application/octet-stream',
-      upsert: false
+      upsert: true
     });
   if (upErr) throw upErr;
-  await sb.from('email_attachments').insert({
+
+  // Skip if a row for this file already exists (retry case)
+  const { data: existing } = await sb
+    .from('email_attachments')
+    .select('id')
+    .eq('email_id', emailId)
+    .eq('storage_path', path)
+    .maybeSingle();
+  if (existing) return;
+
+  const { error: insErr } = await sb.from('email_attachments').insert({
     email_id: emailId,
     user_id: userId,
     filename: att.filename || 'attachment',
@@ -93,6 +104,7 @@ async function uploadAttachment(sb, userId, emailId, att) {
     size_bytes: att.size || (att.content ? att.content.length : 0),
     storage_path: path
   });
+  if (insErr) throw insErr;
 }
 
 // Resolve a mailbox to one of the canonical folder keys, or null if it's not
