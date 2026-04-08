@@ -5710,6 +5710,7 @@ async function doLogin() {
     renderDashCalWidget();
     updateReservierungenBadge();
     updateNewsBadge();
+    restoreLastPage();
 
     // Update sidebar name from metadata if available
     const meta = currentUser.user_metadata || {};
@@ -5732,6 +5733,7 @@ async function doLogin() {
 }
 
 async function doLogout() {
+  try { localStorage.removeItem('crm_last_page'); } catch (_) {}
   await apiLogout();
   document.getElementById('loginScreen').classList.remove('hidden');
   document.getElementById('app').classList.remove('active');
@@ -6315,9 +6317,18 @@ function translateStaticHTML() {
 
 function showPage(pageId, navItem) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById('page-' + pageId).classList.add('active');
+  const target = document.getElementById('page-' + pageId);
+  if (!target) return;
+  target.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
   if (navItem) navItem.classList.add('active');
+  else {
+    // Highlight the matching nav-item even when called programmatically
+    const match = Array.from(document.querySelectorAll('.nav-item')).find(el =>
+      (el.getAttribute('onclick') || '').includes(`showPage('${pageId}'`));
+    if (match) match.classList.add('active');
+  }
+  try { localStorage.setItem('crm_last_page', pageId); } catch (_) {}
 
   const titles = {
     news: t('Neuigkeiten','News'), dashboard: 'Dashboard', pipeline: 'Pipeline', kalender: t('Kalender','Calendar'), chats: 'Chats', bonitaet: t('Bonitätsrechner','Credit Calculator'),
@@ -15029,11 +15040,22 @@ document.addEventListener('DOMContentLoaded', function() {
       renderDashboard();
       updateReservierungenBadge();
       updateNewsBadge();
+      // Restore last visited page
+      restoreLastPage();
       // Onboarding check on session restore
       checkOnboardingFlags();
     }
   });
 });
+
+function restoreLastPage() {
+  try {
+    const last = localStorage.getItem('crm_last_page');
+    if (!last || last === 'dashboard') return;
+    if (!document.getElementById('page-' + last)) return;
+    showPage(last);
+  } catch (_) {}
+}
 </script>
 </body>
 </html>
