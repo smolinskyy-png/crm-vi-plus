@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CRM VI PLUS — Prototyp</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --primary: #000a33;
@@ -5139,61 +5140,75 @@
 </div>
 
 <script>
-// ==================== API CONFIG ====================
-const API_URL = 'http://localhost:5001/api';
-let authToken = localStorage.getItem('crmToken') || null;
+// ==================== SUPABASE CONFIG ====================
+const SUPABASE_URL = 'https://dihbhhkoocmvntbnxkts.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpaGJoaGtvb2Ntdm50Ym54a3RzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NDY4ODMsImV4cCI6MjA5MTIyMjg4M30.UKLOhZe4I4rFRC_BQPmmcZ0xggalZqtGIUYqeDJnFmw';
 
-function apiHeaders() {
-  const h = { 'Content-Type': 'application/json' };
-  if (authToken) h['Authorization'] = 'Bearer ' + authToken;
-  return h;
-}
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let currentUser = null;
 
 async function apiLogin(email, password) {
-  const res = await fetch(API_URL + '/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password })
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || 'Login fehlgeschlagen');
-  authToken = data.token;
-  localStorage.setItem('crmToken', data.token);
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw new Error(error.message);
+  currentUser = data.user;
   return data;
 }
 
 async function apiRegister(name, email, password, role) {
-  const res = await fetch(API_URL + '/auth/register', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, email, password, role })
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { name, role } }
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || 'Registrierung fehlgeschlagen');
-  authToken = data.token;
-  localStorage.setItem('crmToken', data.token);
+  if (error) throw new Error(error.message);
+  currentUser = data.user;
   return data;
 }
 
-async function apiLoadCrmData() {
-  if (!authToken) return null;
-  try {
-    const res = await fetch(API_URL + '/sync', { headers: apiHeaders() });
-    if (!res.ok) return null;
-    const result = await res.json();
-    return result.data;
-  } catch (e) { console.warn('API load error:', e); return null; }
+async function apiLogout() {
+  await supabase.auth.signOut();
+  currentUser = null;
 }
 
-async function apiSaveCrmData(data) {
-  if (!authToken) return;
+async function apiLoadCrmData() {
+  if (!currentUser) return null;
   try {
-    await fetch(API_URL + '/sync', {
-      method: 'PUT',
-      headers: apiHeaders(),
-      body: JSON.stringify(data)
-    });
-  } catch (e) { console.warn('API save error:', e); }
+    const { data, error } = await supabase
+      .from('crm_data')
+      .select('data')
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+    if (error) { console.warn('Supabase load error:', error); return null; }
+    return data ? data.data : null;
+  } catch (e) { console.warn('Load error:', e); return null; }
+}
+
+async function apiSaveCrmData(payload) {
+  if (!currentUser) return;
+  try {
+    const { error } = await supabase
+      .from('crm_data')
+      .upsert({ user_id: currentUser.id, data: payload }, { onConflict: 'user_id' });
+    if (error) console.warn('Supabase save error:', error);
+  } catch (e) { console.warn('Save error:', e); }
+}
+
+// Storage helpers for file uploads
+async function uploadFileToStorage(file, path) {
+  if (!currentUser) throw new Error('Not authenticated');
+  const filePath = `${currentUser.id}/${path || file.name}`;
+  const { data, error } = await supabase.storage
+    .from('crm-files')
+    .upload(filePath, file, { upsert: true });
+  if (error) throw error;
+  return data.path;
+}
+
+async function getFileUrl(path) {
+  const { data } = await supabase.storage
+    .from('crm-files')
+    .createSignedUrl(path, 3600);
+  return data ? data.signedUrl : null;
 }
 
 // ==================== i18n SYSTEM ====================
@@ -5473,7 +5488,7 @@ async function doLogin() {
     kunde: t('Kunde','Customer')
   };
 
-  // Authenticate via backend
+  // Authenticate via Supabase
   try {
     const loginBtn = document.getElementById('loginBtn');
     loginBtn.textContent = t('Anmelden...','Logging in...');
@@ -5484,7 +5499,8 @@ async function doLogin() {
       user = await apiLogin(email, password);
     } catch (loginErr) {
       // If user doesn't exist, register automatically
-      if (loginErr.message.includes('Invalid credentials') || loginErr.message.includes('nicht')) {
+      const msg = (loginErr.message || '').toLowerCase();
+      if (msg.includes('invalid') || msg.includes('not found') || msg.includes('credentials')) {
         const roleMap = { admin: 'ADMIN', partner: 'AGENT', kunde: 'VIEWER' };
         user = await apiRegister(email.split('@')[0], email, password, roleMap[role]);
       } else {
@@ -5525,9 +5541,8 @@ async function doLogin() {
   }
 }
 
-function doLogout() {
-  authToken = null;
-  localStorage.removeItem('crmToken');
+async function doLogout() {
+  await apiLogout();
   document.getElementById('loginScreen').classList.remove('hidden');
   document.getElementById('app').classList.remove('active');
   document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
@@ -13721,6 +13736,32 @@ document.addEventListener('DOMContentLoaded', function() {
   updateChatsBadge();
   updateAufgabenBadge();
   checkFollowUpReminders();
+
+  // Check existing Supabase session (auto-login)
+  supabase.auth.getSession().then(async ({ data }) => {
+    if (data.session) {
+      currentUser = data.session.user;
+      if (document.getElementById('loginEmail')) {
+        document.getElementById('loginEmail').value = currentUser.email;
+      }
+      // Auto-complete login flow
+      const serverData = await apiLoadCrmData();
+      if (serverData) applyCrmData(serverData);
+
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('app').classList.add('active');
+      const role = (currentUser.user_metadata && currentUser.user_metadata.role) || 'admin';
+      const roleNames = { ADMIN: 'Admin', AGENT: 'Vertriebspartner', VIEWER: 'Kunde', admin: 'Admin', partner: 'Vertriebspartner', kunde: 'Kunde' };
+      document.getElementById('userRole').textContent = roleNames[role] || 'Admin';
+      const isAdmin = role === 'ADMIN' || role === 'admin';
+      document.getElementById('adminSection').style.display = isAdmin ? 'block' : 'none';
+      document.querySelectorAll('.admin-only').forEach(el => el.style.display = isAdmin ? '' : 'none');
+      renderKanban();
+      renderDashboard();
+      updateReservierungenBadge();
+      updateNewsBadge();
+    }
+  });
 });
 </script>
 </body>

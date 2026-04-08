@@ -1,0 +1,6 @@
+backend/
+.claude/
+node_modules/
+*.md
+serve.rb
+crm-vi-plus-prototyp.html
