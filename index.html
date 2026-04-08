@@ -8835,6 +8835,7 @@ function submitPipelineNotar() {
     source: 'crm'
   });
   crmDataChanged();
+  scheduleGoogleAutoSync();
 
   document.getElementById('pipelineNotarModal').classList.remove('active');
   renderKanban();
@@ -9206,6 +9207,7 @@ function submitResNotartermin() {
       source: 'crm'
     });
   crmDataChanged();
+  scheduleGoogleAutoSync();
   }
   document.getElementById('resNotarterminModal').classList.remove('active');
   executeAdvanceReservierung(pendingResNotarTerminId, 'notartermin');
@@ -13721,10 +13723,19 @@ function showCalDetail(id) {
 }
 
 function calDeleteEvent(id) {
+  const removed = calEvents.find(e => e.id === id);
   calEvents = calEvents.filter(e => e.id !== id);
   document.getElementById('calDetailModal').classList.remove('show');
   renderCalendar();
   renderDashCalWidget();
+  crmDataChanged();
+  // Wenn der Termin in Google existiert, direkt dort entfernen
+  if (removed && removed.googleId && googleCalState && googleCalState.connected) {
+    apiFetch('/api/google/calendar/delete', {
+      method: 'POST',
+      body: JSON.stringify({ googleId: removed.googleId })
+    }).catch(() => {});
+  }
   showNotification(t('Termin gelöscht','Appointment deleted'), 'success');
 }
 
@@ -13781,6 +13792,7 @@ function calSaveNewEvent() {
   document.getElementById('calNewEventModal').classList.remove('show');
   renderCalendar();
   renderDashCalWidget();
+  scheduleGoogleAutoSync();
   showNotification(t('Termin gespeichert!','Appointment saved!'), 'success');
   addCrmNotification('kalender', 'Neuer Termin: <strong>' + title + '</strong> am ' + new Date(date).toLocaleDateString('de-DE') + ' um ' + start + ' Uhr', 'kalender');
 }
@@ -13910,6 +13922,16 @@ async function toggleGoogleCalendar() {
       window.removeEventListener('message', onMsg);
     }
   }, 500);
+}
+
+let _googleAutoSyncTimer = null;
+function scheduleGoogleAutoSync() {
+  if (!googleCalState || !googleCalState.connected) return;
+  if (_googleAutoSyncTimer) clearTimeout(_googleAutoSyncTimer);
+  _googleAutoSyncTimer = setTimeout(() => {
+    _googleAutoSyncTimer = null;
+    syncGoogleCalendar(true);
+  }, 1500);
 }
 
 async function syncGoogleCalendar(silent) {
