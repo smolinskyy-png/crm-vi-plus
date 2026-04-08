@@ -131,21 +131,44 @@ async function discoverFolders(client) {
   return byKey;
 }
 
+// Window of most recent messages we always re-check per folder. We dedupe
+// against the DB so already-synced messages are skipped, but new mail is
+// always picked up reliably even if a UID watermark is stale.
+const RECENT_WINDOW = 50;
+
 async function syncOneFolder(client, sb, account, folderKey, mailboxPath, watermark, deadline, remainingLimit) {
   let fetched = 0;
   let highestUid = watermark || 0;
 
   const lock = await client.getMailboxLock(mailboxPath);
   try {
-    const startUid = (watermark || 0) + 1;
-    const searchRange = `${startUid}:*`;
+    const status = client.mailbox;
+    const total = (status && status.exists) || 0;
+    if (total === 0) return { fetched: 0, highestUid };
 
-    const uids = [];
-    for await (const msg of client.fetch(searchRange, { uid: true }, { uid: true })) {
-      if (msg.uid >= startUid) uids.push(msg.uid);
-      if (uids.length >= remainingLimit * 3) break;
+    // Sequence range for the last RECENT_WINDOW messages (newest end of mbox)
+    const startSeq = Math.max(1, total - RECENT_WINDOW + 1);
+    const seqRange = `${startSeq}:${total}`;
+
+    // Collect candidate UIDs (newest first)
+    const candidates = [];
+    for await (const msg of client.fetch(seqRange, { uid: true })) {
+      if (msg && typeof msg.uid === 'number') candidates.push(msg.uid);
     }
-    uids.sort((a, b) => a - b);
+    candidates.sort((a, b) => b - a); // newest UID first
+
+    // Dedupe: skip UIDs we already have for (account, folder)
+    let alreadyHave = new Set();
+    if (candidates.length) {
+      const { data: existing } = await sb
+        .from('emails')
+        .select('uid')
+        .eq('account_id', account.id)
+        .eq('folder', folderKey)
+        .in('uid', candidates);
+      alreadyHave = new Set((existing || []).map(r => Number(r.uid)));
+    }
+    const uids = candidates.filter(u => !alreadyHave.has(u));
 
     for (const uid of uids) {
       if (fetched >= remainingLimit) break;
