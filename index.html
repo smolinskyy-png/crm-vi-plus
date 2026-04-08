@@ -5110,6 +5110,7 @@
     </div>
     <div class="form-group"><label>Straße</label><input type="text" id="pAddStrasse" placeholder="Parkstraße 12"></div>
     <div class="form-group"><label>Beschreibung</label><input type="text" id="pAddBeschreibung" placeholder="Kurzbeschreibung des Projekts..."></div>
+    <div class="form-group"><label>Storyline</label><textarea id="pAddStoryline" rows="5" placeholder="Erzähl die Geschichte hinter diesem Projekt – Lage, Vision, Highlights, Zielgruppe ..." style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;resize:vertical;background:var(--bg);color:var(--text)"></textarea></div>
 
     <h4 style="font-size:13px;text-transform:uppercase;letter-spacing:0.5px;color:var(--gold-dark);margin:16px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">Titelbild</h4>
     <div class="file-upload-zone" id="pAddTitelbildZone" style="margin-bottom:10px" onclick="document.getElementById('pAddTitelbildInput').click()"
@@ -5182,12 +5183,14 @@
 
     <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center" id="pDetailTabs">
       <button class="btn btn-sm active" onclick="switchProjektTab('wohnungen',this)" style="font-size:12px">Wohnungen</button>
+      <button class="btn btn-sm" onclick="switchProjektTab('storyline',this)" style="font-size:12px">Storyline</button>
       <button class="btn btn-sm" onclick="switchProjektTab('unterlagen',this)" style="font-size:12px">Projekt-Unterlagen</button>
       <button class="btn btn-sm" id="btnSichtbarkeit" style="display:none;font-size:12px" onclick="switchProjektTab('sichtbarkeit',this)">Sichtbarkeit</button>
       <button class="btn btn-gold btn-sm" id="btnWhgAdd" style="display:none;margin-left:auto;font-size:12px" onclick="openWohneinheitModal()">+ Wohneinheit anlegen</button>
     </div>
 
     <div class="obj-tab active" id="pTab-wohnungen"></div>
+    <div class="obj-tab" id="pTab-storyline"></div>
     <div class="obj-tab" id="pTab-unterlagen"></div>
     <div class="obj-tab" id="pTab-sichtbarkeit"></div>
   </div>
@@ -10452,6 +10455,7 @@ let pAddWhgRows = [];
 function closeProjektModal() {
   document.getElementById('projektAddModal').classList.remove('active');
   document.querySelectorAll('#projektAddModal input').forEach(i => i.value = '');
+  document.querySelectorAll('#projektAddModal textarea').forEach(t => t.value = '');
   pAddDoks = [];
   pAddTitelbild = null;
   pAddWhgRows = [];
@@ -10585,6 +10589,7 @@ function addProjekt() {
   projekte.push({
     id: pId, name, anbieter, plz, stadt, strasse,
     beschreibung: document.getElementById('pAddBeschreibung').value.trim(),
+    storyline: (document.getElementById('pAddStoryline')?.value || '').trim(),
     titelbild: pAddTitelbild || null,
     dokumente: [...pAddDoks],
     sichtbarkeit
@@ -10667,6 +10672,21 @@ function openProjektDetail(id) {
 
   // Projekt-Unterlagen (nur-lesen für Benutzer, Admin kann über Admin-Tabelle ändern)
   const isAdmin = document.getElementById('userRole').textContent === 'Admin';
+
+  // Storyline-Tab
+  const storyText = (p.storyline || '').trim();
+  const storyEsc = storyText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  document.getElementById('pTab-storyline').innerHTML = isAdmin
+    ? `<div style="display:flex;flex-direction:column;gap:10px">
+        <label style="font-size:12px;color:var(--text-light);text-transform:uppercase;letter-spacing:0.5px">Storyline — Geschichte hinter dem Projekt</label>
+        <textarea id="pDetailStoryline" rows="10" placeholder="Erzähl die Geschichte hinter diesem Projekt – Lage, Vision, Highlights, Zielgruppe ..." style="width:100%;padding:12px;border:1px solid var(--border);border-radius:10px;font-family:inherit;font-size:13px;line-height:1.6;resize:vertical;background:var(--bg);color:var(--text)">${storyEsc}</textarea>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn btn-gold btn-sm" onclick="saveProjektStoryline(${id})">💾 Speichern</button>
+        </div>
+      </div>`
+    : (storyText
+        ? `<div style="white-space:pre-wrap;font-size:14px;line-height:1.7;color:var(--text);padding:4px 2px">${storyEsc}</div>`
+        : `<p style="text-align:center;color:var(--text-light);padding:32px 0">Für dieses Projekt wurde noch keine Storyline hinterlegt.</p>`);
 
   // Admin: Buttons
   document.getElementById('btnWhgAdd').style.display = isAdmin ? 'inline-flex' : 'none';
@@ -10775,6 +10795,16 @@ function removeProjektTitelbild() {
   renderProjekte();
   crmDataChanged();
   showNotification('Titelbild entfernt', 'info');
+}
+
+function saveProjektStoryline(projektId) {
+  const p = projekte.find(x => x.id === projektId);
+  if (!p) return;
+  const ta = document.getElementById('pDetailStoryline');
+  if (!ta) return;
+  p.storyline = ta.value.trim();
+  crmDataChanged();
+  showNotification('Storyline gespeichert', 'success');
 }
 
 function updateProjektSichtbarkeit(projektId, field, checked) {
