@@ -3306,7 +3306,7 @@
           <div class="email-toolbar">
             <input class="email-search" type="text" placeholder="E-Mails durchsuchen..." oninput="filterEmails(this.value)">
             <select id="emailAccountFilter" onchange="renderEmailList()" style="padding:8px;border-radius:8px;border:1px solid var(--border);font-size:13px"><option value="">Alle Konten</option></select>
-            <button class="btn btn-outline btn-sm" onclick="syncAllEmailAccounts()" id="emailSyncBtn">🔄 Sync</button>
+            <button class="btn btn-primary btn-sm" onclick="syncAllEmailAccounts()" id="emailSyncBtn">🔄 Synchronisieren</button>
             <button class="btn btn-gold btn-sm" onclick="openComposeEmail()">✉️ Neue E-Mail</button>
           </div>
           <div id="emailDetailView" style="display:none"></div>
@@ -13555,6 +13555,10 @@ async function loadEmailAccounts() {
     }
   } catch (e) {
     console.error('loadEmailAccounts', e);
+    const list = document.getElementById('emailAccountsList');
+    if (list) {
+      list.innerHTML = '<div style="padding:12px;background:#fef2f2;color:#991b1b;border-radius:6px;border:1px solid #fecaca;font-size:12px"><strong>❌ Konten konnten nicht geladen werden</strong><br><code style="font-size:11px">' + escHtml(e.message) + '</code><br><div style="margin-top:6px;font-size:11px;color:#7f1d1d">Prüfe Vercel Env-Vars und mache einen Redeploy.</div></div>';
+    }
   }
 }
 
@@ -13607,21 +13611,25 @@ async function testEmailAccount() {
 
 async function addEmailAccount() {
   const form = readAccountForm();
+  const result = document.getElementById('newEmailTestResult');
   if (!form.label || !form.email || !form.imap_host || !form.smtp_host || !form.password) {
-    showNotification('Bitte alle Pflichtfelder ausfüllen', 'warning');
+    result.innerHTML = '<div style="padding:10px;background:#fef3c7;color:#92400e;border-radius:6px">Bitte alle Pflichtfelder ausfüllen (Bezeichnung, E-Mail, IMAP, SMTP, Passwort).</div>';
     return;
   }
+  result.innerHTML = '<div style="padding:10px;background:#e0e7ff;color:#3730a3;border-radius:6px">Speichere Konto…</div>';
   try {
-    await apiFetch('/api/email/accounts', { method: 'POST', body: JSON.stringify(form) });
+    console.log('[email] POST /api/email/accounts', { ...form, password: '***' });
+    const r = await apiFetch('/api/email/accounts', { method: 'POST', body: JSON.stringify(form) });
+    console.log('[email] saved account', r);
     ['newEmailLabel','newEmailAddr','newEmailUser','newEmailImap','newEmailImapPort','newEmailSmtp','newEmailSmtpPort','newEmailPass'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-    document.getElementById('newEmailTestResult').innerHTML = '';
+    result.innerHTML = '<div style="padding:10px;background:#d1fae5;color:#065f46;border-radius:6px">✅ Konto gespeichert! Lade Liste und starte ersten Sync…</div>';
     await loadEmailAccounts();
-    showNotification('E-Mail-Konto verknüpft! Starte Sync…', 'success');
-    // Auto-trigger first sync
     const latest = (window._emailAccountsCache || [])[0];
-    if (latest) syncOneAccount(latest.id);
+    if (latest) await syncOneAccount(latest.id);
+    result.innerHTML = '<div style="padding:10px;background:#d1fae5;color:#065f46;border-radius:6px">✅ Konto verknüpft und synchronisiert. Wechsle zum E-Mails-Tab.</div>';
   } catch (e) {
-    showNotification('Fehler: ' + e.message, 'warning');
+    console.error('[email] addEmailAccount failed', e);
+    result.innerHTML = '<div style="padding:12px;background:#fef2f2;color:#991b1b;border-radius:6px;border:1px solid #fecaca"><strong>❌ Fehler beim Speichern</strong><br><code style="font-size:12px">' + escHtml(e.message) + '</code><br><div style="font-size:11px;margin-top:6px;color:#7f1d1d">Prüfe: (1) Vercel Env-Vars <code>SUPABASE_URL</code>, <code>SUPABASE_SERVICE_ROLE_KEY</code>, <code>EMAIL_ENCRYPTION_KEY</code> gesetzt und Redeploy gemacht? (2) Tabelle <code>email_accounts</code> in Supabase vorhanden? (3) Network-Tab im Browser für Details.</div></div>';
   }
 }
 
