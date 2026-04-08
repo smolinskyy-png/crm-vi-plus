@@ -6932,97 +6932,222 @@ function addCustomContactCategory() {
 }
 
 function generateSelbstauskunftPDF() {
-  // Collect form data
-  const getValue = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
-  const getRadio = (name) => { const el = document.querySelector('input[name="' + name + '"]:checked'); return el ? el.value : ''; };
-  const getCheck = (id) => { const el = document.getElementById(id); return el ? el.checked : false; };
-
-  const data = {
-    anrede1: getRadio('anrede1'),
-    vorname1: getValue('sa1_vorname'),
-    nachname1: getValue('sa1_nachname'),
-    gebdatum1: getValue('sa1_gebdatum'),
-    gebort1: getValue('sa1_gebort'),
-    gebland1: getValue('sa1_gebland'),
-    telefon1: getValue('sa1_telefon'),
-    email1: getValue('sa1_email'),
-    strasse1: getValue('sa1_strasse'),
-    plz1: getValue('sa1_plz'),
-    ort1: getValue('sa1_ort'),
-    famstand1: getRadio('famstand1'),
-    gueter1: getRadio('famstand1sub'),
-    beschaef1: getRadio('beschaef1'),
-    einkommen1: getValue('sa1_einkommen'),
-    arbeitgeber1: getValue('sa1_arbeitgeber'),
-    beruf1: getValue('sa1_beruf'),
-    steuerid1: getValue('sa1_steuerid'),
-    bankguthaben: getValue('sa_bankguthaben'),
-    wertpapiere: getValue('sa_wertpapiere'),
-    miete: getValue('sa_miete'),
-    iban: getValue('sa_iban'),
-    kontoinhaber: getValue('sa_kontoinhaber')
+  const gv = (id) => { const el = document.getElementById(id); return el ? (el.value || '').trim() : ''; };
+  const gr = (name) => { const el = document.querySelector('input[name="' + name + '"]:checked'); return el ? el.value : ''; };
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  const dash = (v) => (v === '' || v == null) ? '—' : esc(v);
+  const eur = (v) => (v === '' || v == null) ? '—' : (esc(v) + ' €');
+  const fmtDate = (v) => {
+    if (!v) return '—';
+    // yyyy-mm-dd → dd.mm.yyyy
+    const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m ? (m[3] + '.' + m[2] + '.' + m[1]) : esc(v);
+  };
+  const anredeLbl = (v) => v === 'herr' ? 'Herr' : v === 'frau' ? 'Frau' : '—';
+  const famLbl = {
+    verheiratet: 'Verheiratet', ledig: 'Ledig', getrennt: 'Getrennt lebend',
+    geschieden: 'Geschieden', lebenspartner: 'Lebenspartnerschaft', verwitwet: 'Verwitwet'
+  };
+  const beschLbl = {
+    angestellt: 'Angestellter', arbeiter: 'Arbeiter', arbeitslos: 'Arbeitsloser',
+    beamter: 'Beamter', freiberufler: 'Freiberufler', hausfrau: 'Hausfrau/Hausmann',
+    rentner: 'Rentner', selbstaendig: 'Selbständiger'
   };
 
-  // Create printable HTML
-  const printWindow = window.open('', '_blank');
-  printWindow.document.write(`<!DOCTYPE html><html><head><title>Selbstauskunft</title>
+  // Collect Antragsteller (prefix sa1_ or sa2_, radio names with suffix 1/2)
+  const collectAS = (n) => ({
+    anrede: gr('anrede' + n),
+    vorname: gv('sa' + n + '_vorname'),
+    nachname: gv('sa' + n + '_nachname'),
+    gebdatum: gv('sa' + n + '_gebdatum'),
+    gebort: gv('sa' + n + '_gebort'),
+    gebland: gv('sa' + n + '_gebland'),
+    telefon: gv('sa' + n + '_telefon'),
+    email: gv('sa' + n + '_email'),
+    strasse: gv('sa' + n + '_strasse'),
+    plz: gv('sa' + n + '_plz'),
+    ort: gv('sa' + n + '_ort'),
+    wohnhaft: gv('sa' + n + '_wohnhaft'),
+    famstand: gr('famstand' + n),
+    gueter: gr('famstand' + n + 'sub'),
+    staat1: gv('sa' + n + '_staat1'),
+    staat2: gv('sa' + n + '_staat2'),
+    staat3: gv('sa' + n + '_staat3'),
+    aufenthalt: gv('sa' + n + '_aufenthalt'),
+    aufenthaltsart: gv('sa' + n + '_aufenthaltsart'),
+    steuerid: gv('sa' + n + '_steuerid'),
+    beschaef: gr('beschaef' + n),
+    einkommen: gv('sa' + n + '_einkommen'),
+    beschseit: gv('sa' + n + '_beschseit'),
+    gehaelter: gv('sa' + n + '_gehaelter'),
+    arbeitgeber: gv('sa' + n + '_arbeitgeber'),
+    beruf: gv('sa' + n + '_beruf'),
+    rentenbeginn: gv('sa' + n + '_rentenbeginn'),
+    gesrente: gv('sa' + n + '_gesrente'),
+    privrente: gv('sa' + n + '_privrente'),
+    sonsteink: gv('sa' + n + '_sonsteink')
+  });
+  const as1 = collectAS('1');
+  const as2 = collectAS('2');
+  const has2 = Object.values(as2).some(v => v !== '' && v != null);
+
+  // Finanzielle Situation
+  const fin = {
+    bankguthaben: gv('sa_bankguthaben'),
+    wertpapiere: gv('sa_wertpapiere'),
+    lvrueck: gv('sa_lvrueck'),
+    lvpraemie: gv('sa_lvpraemie'),
+    bauwert: gv('sa_bauwert'),
+    baubeitrag: gv('sa_baubeitrag'),
+    sonstverm: gv('sa_sonstverm'),
+    miete: gv('sa_miete'),
+    unterhalt: gv('sa_unterhalt'),
+    pkv: gv('sa_pkv'),
+    ratenschuld: gv('sa_ratenschuld'),
+    ratenrate: gv('sa_ratenrate'),
+    sonstverb: gv('sa_sonstverb'),
+    sonsteinnahmen: gv('sa_sonsteinnahmen'),
+    sonstausgaben: gv('sa_sonstausgaben')
+  };
+
+  const immo = {
+    anzahl: gv('sa_immoanzahl'),
+    wert: gv('sa_immowert'),
+    darlehen: gv('sa_immodarlehen')
+  };
+
+  const konto = {
+    kontoinhaber: gv('sa_kontoinhaber'),
+    kreditinstitut: gv('sa_kreditinstitut'),
+    iban: gv('sa_iban'),
+    bic: gv('sa_bic'),
+    kontonr: gv('sa_kontonr'),
+    blz: gv('sa_blz')
+  };
+
+  const renderAS = (as, titel, color) => `
+    <h2 style="color:${color}">${titel}</h2>
+    <div class="grid2">
+      <div class="field"><label>Anrede</label><div class="val">${anredeLbl(as.anrede)}</div></div>
+      <div class="field"><label>Familienstand</label><div class="val">${famLbl[as.famstand] || '—'}${as.gueter ? ' (' + as.gueter + ' Gütertrennung)' : ''}</div></div>
+      <div class="field"><label>Vorname</label><div class="val">${dash(as.vorname)}</div></div>
+      <div class="field"><label>Nachname</label><div class="val">${dash(as.nachname)}</div></div>
+      <div class="field"><label>Geburtsdatum</label><div class="val">${fmtDate(as.gebdatum)}</div></div>
+      <div class="field"><label>Geburtsort</label><div class="val">${dash(as.gebort)}</div></div>
+      <div class="field"><label>Geburtsland</label><div class="val">${dash(as.gebland)}</div></div>
+      <div class="field"><label>Steuer-ID</label><div class="val">${dash(as.steuerid)}</div></div>
+      <div class="field"><label>Telefon</label><div class="val">${dash(as.telefon)}</div></div>
+      <div class="field"><label>E-Mail</label><div class="val">${dash(as.email)}</div></div>
+      <div class="field full"><label>Straße / Hausnummer</label><div class="val">${dash(as.strasse)}</div></div>
+      <div class="field"><label>PLZ</label><div class="val">${dash(as.plz)}</div></div>
+      <div class="field"><label>Ort</label><div class="val">${dash(as.ort)}</div></div>
+      <div class="field"><label>Wohnhaft seit</label><div class="val">${fmtDate(as.wohnhaft)}</div></div>
+      <div class="field"><label>Aufenthaltsbeginn</label><div class="val">${fmtDate(as.aufenthalt)}</div></div>
+      <div class="field"><label>1. Staatsangehörigkeit</label><div class="val">${dash(as.staat1)}</div></div>
+      <div class="field"><label>2. Staatsangehörigkeit</label><div class="val">${dash(as.staat2)}</div></div>
+      <div class="field"><label>3. Staatsangehörigkeit</label><div class="val">${dash(as.staat3)}</div></div>
+      <div class="field"><label>Art der Aufenthaltserlaubnis</label><div class="val">${dash(as.aufenthaltsart)}</div></div>
+    </div>
+    <h3>Beschäftigung</h3>
+    <div class="grid2">
+      <div class="field"><label>Art der Beschäftigung</label><div class="val">${beschLbl[as.beschaef] || '—'}</div></div>
+      <div class="field"><label>Nettoeinkommen monatlich</label><div class="val">${eur(as.einkommen)}</div></div>
+      <div class="field"><label>Beschäftigt seit</label><div class="val">${fmtDate(as.beschseit)}</div></div>
+      <div class="field"><label>Gehälter pro Jahr</label><div class="val">${dash(as.gehaelter)}</div></div>
+      <div class="field"><label>Arbeitgeber</label><div class="val">${dash(as.arbeitgeber)}</div></div>
+      <div class="field"><label>Beruf</label><div class="val">${dash(as.beruf)}</div></div>
+    </div>
+    <h3>Situation nach Renteneintritt</h3>
+    <div class="grid2">
+      <div class="field"><label>Rentenbeginn</label><div class="val">${fmtDate(as.rentenbeginn)}</div></div>
+      <div class="field"><label>Gesetzliche Rente</label><div class="val">${eur(as.gesrente)}</div></div>
+      <div class="field"><label>Private Rente</label><div class="val">${eur(as.privrente)}</div></div>
+      <div class="field"><label>Sonstiges Einkommen</label><div class="val">${eur(as.sonsteink)}</div></div>
+    </div>
+  `;
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Selbstauskunft</title>
     <style>
-      body { font-family: Arial, sans-serif; font-size: 12px; color: #333; padding: 40px; max-width: 800px; margin: 0 auto; }
-      h1 { text-align: center; font-size: 18px; color: #000a33; margin-bottom: 24px; letter-spacing: 2px; }
-      h2 { font-size: 14px; color: #000a33; border-bottom: 2px solid #c9a84c; padding-bottom: 6px; margin: 24px 0 12px; }
-      .row { display: flex; gap: 16px; margin-bottom: 8px; }
-      .field { flex: 1; }
-      .field label { display: block; font-size: 10px; color: #888; margin-bottom: 2px; }
-      .field .val { border-bottom: 1px solid #ccc; min-height: 18px; padding: 2px 0; font-size: 12px; }
-      .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; }
-      @media print { body { padding: 20px; } }
+      @page { size: A4; margin: 18mm 16mm; }
+      body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #222; margin: 0; }
+      h1 { text-align: center; font-size: 20px; color: #000a33; margin: 0 0 6px; letter-spacing: 2px; }
+      .sub { text-align: center; font-size: 10px; color: #888; margin-bottom: 18px; }
+      h2 { font-size: 13px; color: #000a33; border-bottom: 2px solid #c9a84c; padding-bottom: 4px; margin: 18px 0 10px; page-break-after: avoid; }
+      h3 { font-size: 12px; color: #000a33; margin: 14px 0 8px; page-break-after: avoid; }
+      .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; }
+      .field { min-width: 0; page-break-inside: avoid; }
+      .field.full { grid-column: 1/-1; }
+      .field label { display: block; font-size: 9px; color: #888; margin-bottom: 1px; }
+      .field .val { border-bottom: 1px solid #d0d0d0; min-height: 16px; padding: 1px 2px; font-size: 11px; word-wrap: break-word; }
+      .section { page-break-inside: avoid; }
+      .sign-grid { margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 30px; page-break-inside: avoid; }
+      .sign-line { border-top: 1px solid #333; padding-top: 3px; font-size: 9px; text-align: center; }
+      @media print { a { color: inherit; text-decoration: none; } }
     </style>
   </head><body>
     <h1>SELBSTAUSKUNFT</h1>
-    <div style="text-align:center;margin-bottom:24px;font-size:10px;color:#888">VertriebsImmo CRM VI PLUS — Erstellt am ${new Date().toLocaleDateString('de-DE')}</div>
+    <div class="sub">VertriebsImmo CRM VI PLUS — Erstellt am ${new Date().toLocaleDateString('de-DE')}</div>
 
-    <h2>Ihre persönlichen Daten — Antragsteller 1</h2>
-    <div class="grid2">
-      <div class="field"><label>Anrede</label><div class="val">${data.anrede1 === 'herr' ? 'Herr' : data.anrede1 === 'frau' ? 'Frau' : '—'}</div></div>
-      <div class="field"><label>Familienstand</label><div class="val">${data.famstand1 || '—'}${data.gueter1 ? ' (' + data.gueter1 + ' Gütertrennung)' : ''}</div></div>
-      <div class="field"><label>Vorname</label><div class="val">${data.vorname1 || '—'}</div></div>
-      <div class="field"><label>Nachname</label><div class="val">${data.nachname1 || '—'}</div></div>
-      <div class="field"><label>Geburtsdatum</label><div class="val">${data.gebdatum1 || '—'}</div></div>
-      <div class="field"><label>Geburtsort</label><div class="val">${data.gebort1 || '—'}</div></div>
-      <div class="field"><label>Geburtsland</label><div class="val">${data.gebland1 || '—'}</div></div>
-      <div class="field"><label>Steuer-ID</label><div class="val">${data.steuerid1 || '—'}</div></div>
-      <div class="field"><label>Telefon</label><div class="val">${data.telefon1 || '—'}</div></div>
-      <div class="field"><label>E-Mail</label><div class="val">${data.email1 || '—'}</div></div>
-      <div class="field"><label>Straße / Hausnummer</label><div class="val">${data.strasse1 || '—'}</div></div>
-      <div class="field"><label>PLZ / Ort</label><div class="val">${data.plz1 || '—'} ${data.ort1 || ''}</div></div>
+    <div class="section">
+      ${renderAS(as1, 'Antragsteller 1', '#000a33')}
     </div>
 
-    <h2>Beschäftigung</h2>
-    <div class="grid2">
-      <div class="field"><label>Art der Beschäftigung</label><div class="val">${data.beschaef1 || '—'}</div></div>
-      <div class="field"><label>Nettoeinkommen monatlich</label><div class="val">${data.einkommen1 ? data.einkommen1 + ' €' : '—'}</div></div>
-      <div class="field"><label>Arbeitgeber</label><div class="val">${data.arbeitgeber1 || '—'}</div></div>
-      <div class="field"><label>Beruf</label><div class="val">${data.beruf1 || '—'}</div></div>
+    ${has2 ? '<div class="section" style="page-break-before: always">' + renderAS(as2, 'Antragsteller 2', '#c9a84c') + '</div>' : ''}
+
+    <div class="section">
+      <h2>Finanzielle Situation — Vermögen / Einnahmen</h2>
+      <div class="grid2">
+        <div class="field"><label>Bank- und Sparguthaben</label><div class="val">${eur(fin.bankguthaben)}</div></div>
+        <div class="field"><label>Wertpapiere / Aktien (Gesamtwert)</label><div class="val">${eur(fin.wertpapiere)}</div></div>
+        <div class="field"><label>Lebens-/Rentenvers. Rückkaufwert</label><div class="val">${eur(fin.lvrueck)}</div></div>
+        <div class="field"><label>Lebens-/Rentenvers. Prämie jährlich</label><div class="val">${eur(fin.lvpraemie)}</div></div>
+        <div class="field"><label>Bausparvertrag - Angesparter Wert</label><div class="val">${eur(fin.bauwert)}</div></div>
+        <div class="field"><label>Bausparvertrag - Beitrag jährlich</label><div class="val">${eur(fin.baubeitrag)}</div></div>
+        <div class="field full"><label>Sonstiges Vermögen</label><div class="val">${eur(fin.sonstverm)}</div></div>
+      </div>
+
+      <h2>Finanzielle Situation — Ausgaben / Verbindlichkeiten</h2>
+      <div class="grid2">
+        <div class="field"><label>Mietausgaben monatlich</label><div class="val">${eur(fin.miete)}</div></div>
+        <div class="field"><label>Unterhaltsverpflichtungen monatlich</label><div class="val">${eur(fin.unterhalt)}</div></div>
+        <div class="field"><label>Private Krankenvers. monatlich</label><div class="val">${eur(fin.pkv)}</div></div>
+        <div class="field"><label>Ratenkredit Restschuld</label><div class="val">${eur(fin.ratenschuld)}</div></div>
+        <div class="field"><label>Ratenkredit Rate monatlich</label><div class="val">${eur(fin.ratenrate)}</div></div>
+        <div class="field"><label>Sonstige Verbindlichkeiten</label><div class="val">${eur(fin.sonstverb)}</div></div>
+        <div class="field"><label>Sonstige Einnahmen monatlich</label><div class="val">${eur(fin.sonsteinnahmen)}</div></div>
+        <div class="field"><label>Sonstige Ausgaben monatlich</label><div class="val">${eur(fin.sonstausgaben)}</div></div>
+      </div>
     </div>
 
-    <h2>Finanzielle Situation</h2>
-    <div class="grid2">
-      <div class="field"><label>Bank- und Sparguthaben</label><div class="val">${data.bankguthaben ? data.bankguthaben + ' €' : '—'}</div></div>
-      <div class="field"><label>Wertpapiere / Aktien</label><div class="val">${data.wertpapiere ? data.wertpapiere + ' €' : '—'}</div></div>
-      <div class="field"><label>Mietausgaben monatlich</label><div class="val">${data.miete ? data.miete + ' €' : '—'}</div></div>
+    <div class="section">
+      <h2>Weiteres Immobilienvermögen</h2>
+      <div class="grid2">
+        <div class="field"><label>Anzahl der Immobilien</label><div class="val">${dash(immo.anzahl)}</div></div>
+        <div class="field"><label>Geschätzter Wert (Gesamt)</label><div class="val">${eur(immo.wert)}</div></div>
+        <div class="field full"><label>Ausstehende Darlehen (Gesamt)</label><div class="val">${eur(immo.darlehen)}</div></div>
+      </div>
     </div>
 
-    <h2>Kontoverbindung</h2>
-    <div class="grid2">
-      <div class="field"><label>Kontoinhaber</label><div class="val">${data.kontoinhaber || '—'}</div></div>
-      <div class="field"><label>IBAN</label><div class="val">${data.iban || '—'}</div></div>
+    <div class="section">
+      <h2>Kontoverbindung</h2>
+      <div class="grid2">
+        <div class="field"><label>Kontoinhaber</label><div class="val">${dash(konto.kontoinhaber)}</div></div>
+        <div class="field"><label>Kreditinstitut</label><div class="val">${dash(konto.kreditinstitut)}</div></div>
+        <div class="field"><label>IBAN</label><div class="val">${dash(konto.iban)}</div></div>
+        <div class="field"><label>BIC</label><div class="val">${dash(konto.bic)}</div></div>
+        <div class="field"><label>Konto-Nr.</label><div class="val">${dash(konto.kontonr)}</div></div>
+        <div class="field"><label>BLZ</label><div class="val">${dash(konto.blz)}</div></div>
+      </div>
     </div>
 
-    <div style="margin-top:60px;display:grid;grid-template-columns:1fr 1fr;gap:40px">
-      <div style="border-top:1px solid #333;padding-top:4px;font-size:10px;text-align:center">Ort, Datum</div>
-      <div style="border-top:1px solid #333;padding-top:4px;font-size:10px;text-align:center">Unterschrift Antragsteller 1</div>
+    <div class="sign-grid">
+      <div class="sign-line">Ort, Datum</div>
+      <div class="sign-line">Unterschrift Antragsteller 1${has2 ? ' / Antragsteller 2' : ''}</div>
     </div>
-  </body></html>`);
+  </body></html>`;
+
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(html);
   printWindow.document.close();
   printWindow.focus();
   setTimeout(() => printWindow.print(), 500);
