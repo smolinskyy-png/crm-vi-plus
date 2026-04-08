@@ -2107,6 +2107,8 @@
   .email-item:hover { background:#f8f9fd; }
   .email-item.unread { background:#fefce8; }
   .email-item.unread .email-subject { font-weight:700; }
+  .email-item.unread .email-sender::before { content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--gold);margin-right:8px;vertical-align:middle; }
+  .email-unread-badge { display:inline-block;background:var(--gold);color:white;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;margin-left:8px;vertical-align:middle; }
   .email-avatar { width:38px;height:38px;border-radius:50%;background:var(--primary);color:white;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0; }
   .email-content { flex:1;min-width:0; }
   .email-header { display:flex;justify-content:space-between;align-items:center;margin-bottom:2px; }
@@ -13124,7 +13126,7 @@ function renderChats() {
 }
 
 // One-time build marker so users can verify they have the latest code
-console.log('[CRM VI PLUS] Build: email-integration-v4 — Outlook-style mailbox (Posteingang/Gesendet)');
+console.log('[CRM VI PLUS] Build: email-integration-v5 — Folders (Trash/Spam/Archive/Drafts) + unread filter');
 
 function switchChatTab(tab, btn) {
   document.querySelectorAll('#page-chats .chat-tab').forEach(t => t.classList.remove('active'));
@@ -13139,7 +13141,8 @@ function switchChatTab(tab, btn) {
 window._emailCache = [];
 window._emailAccountsCache = [];
 window._emailFilter = '';
-window._emailFolder = 'INBOX'; // 'INBOX' | 'SENT' | 'ALL'
+window._emailFolder = 'INBOX'; // INBOX | SENT | DRAFTS | ARCHIVE | SPAM | TRASH | ALL
+window._emailUnreadOnly = false;
 
 function onMailboxAccountChange() {
   loadEmailsFromDb();
@@ -13161,31 +13164,59 @@ function closeEmailViews() {
   if (list) list.style.display = 'block';
 }
 
+const MAILBOX_FOLDERS = [
+  { key: 'INBOX',   icon: '📥', label: 'Posteingang' },
+  { key: 'SENT',    icon: '📤', label: 'Gesendet' },
+  { key: 'DRAFTS',  icon: '📝', label: 'Entwürfe' },
+  { key: 'ARCHIVE', icon: '🗄️', label: 'Archiv' },
+  { key: 'SPAM',    icon: '⚠️', label: 'Spam' },
+  { key: 'TRASH',   icon: '🗑️', label: 'Papierkorb' },
+  { key: 'ALL',     icon: '🗂️', label: 'Alle' }
+];
+
 function renderMailboxSidebar() {
   const host = document.getElementById('mailboxFolders');
   if (!host) return;
   const cache = window._emailCache || [];
   const current = window._emailFolder || 'INBOX';
-  const counts = {
-    INBOX: cache.filter(e => (e.folder || '').toUpperCase() === 'INBOX' && !e.is_read).length,
-    SENT: cache.filter(e => (e.folder || '').toUpperCase() === 'SENT' && !e.is_read).length,
-    ALL: cache.filter(e => !e.is_read).length
-  };
-  const totals = {
-    INBOX: cache.filter(e => (e.folder || '').toUpperCase() === 'INBOX').length,
-    SENT: cache.filter(e => (e.folder || '').toUpperCase() === 'SENT').length,
-    ALL: cache.length
-  };
-  const item = (key, icon, label) => {
-    const active = current === key ? 'active' : '';
-    const badge = counts[key] > 0 ? `<span class="mb-folder-badge">${counts[key]}</span>` : `<span style="font-size:10px;color:var(--text-light)">${totals[key]}</span>`;
-    return `<div class="mb-folder ${active}" onclick="selectEmailFolder('${key}')">
-      <span class="mb-folder-icon">${icon}</span>
-      <span class="mb-folder-label">${label}</span>
+
+  function unreadFor(key) {
+    if (key === 'ALL') return cache.filter(e => !e.is_read).length;
+    return cache.filter(e => (e.folder || '').toUpperCase() === key && !e.is_read).length;
+  }
+  function totalFor(key) {
+    if (key === 'ALL') return cache.length;
+    return cache.filter(e => (e.folder || '').toUpperCase() === key).length;
+  }
+
+  let html = '';
+  for (const f of MAILBOX_FOLDERS) {
+    const u = unreadFor(f.key);
+    const t = totalFor(f.key);
+    const active = current === f.key ? 'active' : '';
+    const badge = u > 0
+      ? `<span class="mb-folder-badge">${u}</span>`
+      : `<span style="font-size:10px;color:var(--text-light)">${t}</span>`;
+    html += `<div class="mb-folder ${active}" onclick="selectEmailFolder('${f.key}')">
+      <span class="mb-folder-icon">${f.icon}</span>
+      <span class="mb-folder-label">${f.label}</span>
       ${badge}
     </div>`;
-  };
-  host.innerHTML = item('INBOX', '📥', 'Posteingang') + item('SENT', '📤', 'Gesendet') + item('ALL', '🗂️', 'Alle');
+  }
+  // Unread filter toggle
+  const unreadActive = window._emailUnreadOnly ? 'active' : '';
+  html += `<div class="mb-section-title" style="margin-top:10px">Filter</div>
+    <div class="mb-folder ${unreadActive}" onclick="toggleUnreadOnly()">
+      <span class="mb-folder-icon">${window._emailUnreadOnly ? '☑️' : '☐'}</span>
+      <span class="mb-folder-label">Nur ungelesen</span>
+    </div>`;
+  host.innerHTML = html;
+}
+
+function toggleUnreadOnly() {
+  window._emailUnreadOnly = !window._emailUnreadOnly;
+  closeEmailViews();
+  renderEmailList();
 }
 
 async function apiFetch(path, opts = {}) {
@@ -13238,6 +13269,10 @@ function renderEmailList() {
     items = items.filter(e => (e.folder || '').toUpperCase() === folder);
   }
 
+  if (window._emailUnreadOnly) {
+    items = items.filter(e => !e.is_read);
+  }
+
   const filter = (window._emailFilter || '').toLowerCase();
   if (filter) {
     items = items.filter(e =>
@@ -13253,16 +13288,20 @@ function renderEmailList() {
   items.sort((a, b) => new Date(b.date_sent || 0) - new Date(a.date_sent || 0));
 
   // Header title / count
-  const titles = { INBOX: '📥 Posteingang', SENT: '📤 Gesendet', ALL: '🗂️ Alle E-Mails' };
+  const titleMap = Object.fromEntries(MAILBOX_FOLDERS.map(f => [f.key, f.icon + ' ' + f.label]));
   const titleEl = document.getElementById('mailboxTitle');
   const countEl = document.getElementById('mailboxCount');
-  if (titleEl) titleEl.textContent = titles[folder] || titles.INBOX;
+  if (titleEl) titleEl.textContent = titleMap[folder] || titleMap.INBOX;
   if (countEl) countEl.textContent = items.length + ' E-Mail' + (items.length === 1 ? '' : 's');
 
   if (!items.length) {
-    const hint = folder === 'SENT'
-      ? 'Noch keine gesendeten E-Mails.'
-      : 'Verknüpfe ein E-Mail-Konto in den Einstellungen und klicke auf "Synchronisieren".';
+    let hint = 'Verknüpfe ein E-Mail-Konto in den Einstellungen und klicke auf "Synchronisieren".';
+    if (window._emailUnreadOnly) hint = 'Keine ungelesenen E-Mails.';
+    else if (folder === 'SENT') hint = 'Noch keine gesendeten E-Mails.';
+    else if (folder === 'DRAFTS') hint = 'Keine Entwürfe.';
+    else if (folder === 'TRASH') hint = 'Papierkorb ist leer.';
+    else if (folder === 'SPAM') hint = 'Kein Spam.';
+    else if (folder === 'ARCHIVE') hint = 'Archiv ist leer.';
     list.innerHTML = `<div style="text-align:center;padding:60px 20px;color:var(--text-light);background:white"><div style="font-size:48px;margin-bottom:12px">📭</div><h3 style="margin-bottom:8px">Keine E-Mails</h3><p style="font-size:14px">${hint}</p></div>`;
     return;
   }
@@ -13308,13 +13347,14 @@ function renderEmailList() {
     const timeStr = d ? d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '';
     const preview = (e.body_text || '').slice(0, 140).replace(/\s+/g, ' ');
     const prefix = isSent ? 'An: ' : '';
+    const unreadTag = e.is_read ? '' : '<span class="email-unread-badge">NEU</span>';
     html += `
       <div class="email-item ${e.is_read ? '' : 'unread'}" onclick="openEmail('${e.id}')">
         <div class="email-avatar">${escHtml(initials)}</div>
         <div class="email-content">
           <div class="email-header">
             <span class="email-sender">${escHtml(prefix + display)}${e.has_attachments ? ' 📎' : ''}</span>
-            <span class="email-date">${dateStr} ${timeStr}</span>
+            <span class="email-date">${unreadTag}${dateStr} ${timeStr}</span>
           </div>
           <div class="email-subject">${escHtml(e.subject || '(ohne Betreff)')}</div>
           <div class="email-preview">${escHtml(preview)}</div>
