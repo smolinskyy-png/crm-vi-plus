@@ -9313,17 +9313,45 @@ function handleObjDokDrop(event) {
 }
 
 function processObjDokumente(files) {
-  const o = objekte.find(x => x.id === currentObjektId);
+  const objId = currentObjektId;
+  const o = objekte.find(x => x.id === objId);
   if (!o) return;
   files.forEach(file => {
     if (file.size > 10*1024*1024) { showNotification('Max 10 MB: ' + file.name, 'info'); return; }
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      o.dokumente.push({ id: Date.now() + Math.random(), name: file.name, originalName: file.name, size: file.size, type: file.type, data: e.target.result, date: new Date().toLocaleDateString('de-DE') });
-      renderObjDokumente();
-      showNotification(file.name + ' hochgeladen', 'success');
+    const dokId = Date.now() + Math.random();
+    const dok = {
+      id: dokId,
+      name: file.name,
+      originalName: file.name,
+      size: file.size,
+      type: file.type,
+      date: new Date().toLocaleDateString('de-DE'),
+      saved: false,
+      uploading: true,
+      storage_path: null,
+      error: null
     };
-    reader.readAsDataURL(file);
+    o.dokumente.push(dok);
+    renderObjDokumente();
+
+    // Auto-save: upload to Supabase Storage in the background
+    (async () => {
+      try {
+        const path = `objekte/${objId}/${dokId}_${file.name}`;
+        const storedPath = await uploadFileToStorage(file, path);
+        dok.storage_path = storedPath;
+        dok.uploading = false;
+        dok.saved = true;
+        showNotification(file.name + ' gespeichert', 'success');
+        crmDataChanged();
+      } catch (e) {
+        dok.uploading = false;
+        dok.saved = false;
+        dok.error = e.message || String(e);
+        showNotification('Fehler beim Speichern: ' + dok.error, 'warning');
+      }
+      renderObjDokumente();
+    })();
   });
 }
 
@@ -9335,10 +9363,25 @@ function renderObjDokumente() {
   list.innerHTML = o.dokumente.map(d => {
     const isPdf = d.type === 'application/pdf';
     const sizeStr = d.size < 1024 ? d.size+' B' : d.size < 1048576 ? (d.size/1024).toFixed(1)+' KB' : (d.size/1048576).toFixed(1)+' MB';
-    return `<div class="dok-item">
+    let stateStyle = '';
+    let stateBadge = '';
+    if (d.uploading) {
+      stateStyle = 'background:#fff8e1;border:1px solid #facc15';
+      stateBadge = '<span style="font-size:10px;font-weight:700;color:#a16207;background:#fef3c7;padding:2px 7px;border-radius:10px;margin-left:6px">⏳ Speichere…</span>';
+    } else if (d.saved || d.storage_path) {
+      stateStyle = 'background:#ecfdf5;border:1px solid #10b981';
+      stateBadge = '<span style="font-size:10px;font-weight:700;color:#065f46;background:#d1fae5;padding:2px 7px;border-radius:10px;margin-left:6px">✓ Gespeichert</span>';
+    } else if (d.error) {
+      stateStyle = 'background:#fef2f2;border:1px solid #ef4444';
+      stateBadge = '<span style="font-size:10px;font-weight:700;color:#991b1b;background:#fee2e2;padding:2px 7px;border-radius:10px;margin-left:6px" title="' + escHtml(d.error) + '">⚠ Fehler</span>';
+    }
+    return `<div class="dok-item" style="${stateStyle}">
       <div class="file-icon ${isPdf?'pdf':'png'}" style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${isPdf?'📕':'🖼️'}</div>
       <div style="flex:1;min-width:0">
-        <input class="dok-name-input" value="${d.name}" onblur="renameObjDok('${d.id}', this.value)" onkeydown="if(event.key==='Enter'){this.blur()}" title="Klicken zum Umbenennen">
+        <div style="display:flex;align-items:center">
+          <input class="dok-name-input" value="${d.name}" onblur="renameObjDok('${d.id}', this.value)" onkeydown="if(event.key==='Enter'){this.blur()}" title="Klicken zum Umbenennen">
+          ${stateBadge}
+        </div>
         <div style="font-size:11px;color:var(--text-light)">${sizeStr} · ${d.date}</div>
       </div>
       <div style="display:flex;gap:4px;flex-shrink:0">
@@ -9359,20 +9402,40 @@ function renameObjDok(dokId, newName) {
   }
 }
 
-function downloadObjDok(dokId) {
+async function downloadObjDok(dokId) {
   const o = objekte.find(x => x.id === currentObjektId);
   if (!o) return;
   const dok = o.dokumente.find(d => String(d.id) === String(dokId));
   if (!dok) return;
-  const a = document.createElement('a'); a.href = dok.data; a.download = dok.name; a.click();
+  if (dok.storage_path) {
+    try {
+      const url = await getFileUrl(dok.storage_path);
+      if (url) { window.open(url, '_blank'); return; }
+    } catch (e) { console.warn('signed url failed', e); }
+  }
+  if (dok.data) {
+    const a = document.createElement('a'); a.href = dok.data; a.download = dok.name; a.click();
+  } else {
+    showNotification('Datei kann nicht geladen werden', 'warning');
+  }
 }
 
-function removeObjDok(dokId) {
+async function removeObjDok(dokId) {
   const o = objekte.find(x => x.id === currentObjektId);
   if (!o) return;
+  const dok = o.dokumente.find(d => String(d.id) === String(dokId));
+  if (!dok) return;
+  if (!confirm('Diese Unterlage wirklich löschen?')) return;
+  // Delete from storage if uploaded
+  if (dok.storage_path) {
+    try {
+      await sb.storage.from('crm-files').remove([dok.storage_path]);
+    } catch (e) { console.warn('storage remove failed', e); }
+  }
   o.dokumente = o.dokumente.filter(d => String(d.id) !== String(dokId));
   renderObjDokumente();
-  showNotification('Unterlage entfernt', 'info');
+  crmDataChanged();
+  showNotification('Unterlage gelöscht', 'info');
 }
 
 // ==================== PROJEKTE ====================
